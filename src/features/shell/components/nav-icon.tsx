@@ -7,7 +7,6 @@ import {
   Landmark,
   Receipt,
   ScrollText,
-  ShieldAlert,
   ShieldCheck,
   UserCog,
   Users,
@@ -22,7 +21,7 @@ import type { NavIconName } from "../lib/navigation";
  * `navigation.ts` also uses "shield-alert" (disputes) although NavIconName does
  * not list it yet, so the map accepts the wider key set and falls back to Home.
  */
-type IconKey = NavIconName | "shield-alert" | "user-circle" | "settings";
+type IconKey = NavIconName | "user-circle" | "settings";
 
 const iconMap: Record<IconKey, LucideIcon> = {
   home: Home,
@@ -36,7 +35,6 @@ const iconMap: Record<IconKey, LucideIcon> = {
   receipt: Receipt,
   "shield-check": ShieldCheck,
   banknote: Banknote,
-  "shield-alert": ShieldAlert,
   "user-circle": UserCircle,
   settings: Settings,
 };

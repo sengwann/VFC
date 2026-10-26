@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Alert } from "@/components/ui/alert";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,14 +14,7 @@ import { fill } from "./fill";
 
 const STATUS: Record<string, { variant: BadgeVariant; key: TranslationKey }> = {
   ACCEPTED: { variant: "success", key: "dashboard.status.accepted" },
-  PENDING: { variant: "warning", key: "dashboard.status.pending" },
-  REJECTED: { variant: "danger", key: "dashboard.status.rejected" },
-};
-
-const METHOD: Record<string, TranslationKey> = {
-  // Existing KPay payments remain visible in historical dashboards.
-  KPAY: "dashboard.method.kpay",
-  CASH: "dashboard.method.cash",
+  VOIDED: { variant: "neutral", key: "cashPay.status.voided" },
 };
 
 export function VillagerOverview({
@@ -105,20 +97,6 @@ export function VillagerOverview({
         )}
       </Section>
 
-      {data.rejectedCount > 0 ? (
-        <Alert
-          title={fill(
-            t(
-              data.rejectedCount === 1
-                ? "dashboard.rejected.one"
-                : "dashboard.rejected.other",
-            ),
-            { count: data.rejectedCount },
-          )}
-          tone="danger"
-        />
-      ) : null}
-
       <Section
         actions={
           <Button asChild size="sm" variant="ghost">
@@ -137,7 +115,6 @@ export function VillagerOverview({
           <Card>
             <ul className="divide-y divide-border">
               {data.recentPayments.map((payment) => {
-                const methodKey = METHOD[payment.paymentMethod];
                 const statusConfig = STATUS[payment.status];
                 return (
                   <li
@@ -149,8 +126,7 @@ export function VillagerOverview({
                         {formatAmount(payment.amount)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {methodKey ? t(methodKey) : payment.paymentMethod} ·{" "}
-                        {formatYangonDateTime(payment.createdAt)}
+                        Cash · {formatYangonDateTime(payment.createdAt)}
                       </p>
                     </div>
                     <Badge dot variant={statusConfig?.variant ?? "neutral"}>

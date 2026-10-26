@@ -2,7 +2,6 @@
 
 import {
   AuditActionType,
-  PaymentMethod,
   PaymentStatus,
   Prisma,
   ReceiptStatus,
@@ -55,7 +54,6 @@ export async function voidPaymentAction(
       id: true,
       villageId: true,
       status: true,
-      paymentMethod: true,
       amount: true,
       fundId: true,
       houseId: true,
@@ -67,10 +65,6 @@ export async function voidPaymentAction(
 
   if (!payment || payment.villageId !== villageId) {
     return { success: false, error: "Payment not found." };
-  }
-
-  if (payment.paymentMethod !== PaymentMethod.CASH) {
-    return { success: false, error: "Only cash payments can be voided." };
   }
 
   if (payment.status !== PaymentStatus.ACCEPTED) {
@@ -117,7 +111,7 @@ export async function voidPaymentAction(
             actorUserId: user.id,
             metadata: {
               amount: payment.amount,
-              paymentMethod: PaymentMethod.CASH,
+              paymentMethod: "CASH",
               fundId: payment.fundId,
               houseId: payment.houseId,
               voidReason: reasonValidation.data,

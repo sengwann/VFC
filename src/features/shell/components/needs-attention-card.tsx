@@ -33,24 +33,12 @@ export function NeedsAttentionCard({
 
   if (isChief && notifications.chief) {
     const {
-      disputesNeedingAction,
       hasActiveCollector,
       hasActiveFund,
       pendingHeadlessMembers,
       singleHeadlessHouseId,
     } = notifications.chief;
-    if (disputesNeedingAction > 0) {
-      items.push({
-        key: "disputes",
-        label: counted(
-          disputesNeedingAction,
-          "shell.attention.disputesOne",
-          "shell.attention.disputesOther",
-        ),
-        href: "/village/disputes",
-        variant: "count",
-      });
-    }
+
     // Pending members of houses with no head: only the Chief can decide.
     if (pendingHeadlessMembers > 0) {
       items.push({

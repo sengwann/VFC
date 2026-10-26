@@ -7,7 +7,6 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useTranslation } from "@/lib/i18n/provider";
 import { cn, formatAmount, formatYangonDateTime } from "@/lib/utils";
-import { ReceiptMethodLabel } from "./receipt-method-label";
 import { ReceiptStatusBadge } from "./receipt-status-badge";
 
 export interface ReceiptListItem {
@@ -97,9 +96,7 @@ export function ReceiptList({
                         {formatYangonDateTime(receipt.payment.createdAt)}
                       </time>
                       <span aria-hidden="true"> · </span>
-                      <ReceiptMethodLabel
-                        method={receipt.payment.paymentMethod}
-                      />
+                      Cash
                     </p>
                     <ChevronRight
                       aria-hidden

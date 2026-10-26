@@ -1,5 +1,5 @@
 import "server-only";
-import { PaymentMethod, PaymentStatus } from "@prisma/client";
+import { PaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export interface MonthlyCollection {
@@ -11,17 +11,12 @@ export interface MonthlyCollection {
 
 export interface CollectorCollectionSummary {
   totalCollected: number;
-  totalPendingAmount: number;
   acceptedCount: number;
-  pendingCount: number;
-  rejectedCount: number;
-  cashCount: number;
 }
 
 export interface CollectorChartData {
   summary: CollectorCollectionSummary;
   collectionOverTime: MonthlyCollection[];
-  paidVsPending: { label: string; count: number; amount: number }[];
 }
 
 const MONTH_LABELS = [
@@ -46,61 +41,26 @@ function getMonthLabel(year: number, month: number): string {
 /**
  * Fetches collection analytics for the Collector dashboard.
  * All data is scoped to the collector's village.
- * Accepted/Rejected/Cash are scoped to this specific collector.
- * Pending totals remain village-wide so preserved legacy records stay visible.
+ * Accepted totals are scoped to this specific collector.
  */
 export async function getCollectorChartData(
   villageId: string,
   collectorUserId: string,
 ): Promise<CollectorChartData> {
   // Summary counts and totals
-  const [
-    acceptedResult,
-    pendingResult,
-    rejectedCount,
-    cashCount,
-  ] = await Promise.all([
-    prisma.payment.aggregate({
-      where: {
-        villageId,
-        collectorUserId,
-        status: PaymentStatus.ACCEPTED,
-      },
-      _sum: { amount: true },
-      _count: { id: true },
-    }),
-    prisma.payment.aggregate({
-      where: {
-        villageId,
-        status: PaymentStatus.PENDING,
-      },
-      _sum: { amount: true },
-      _count: { id: true },
-    }),
-    prisma.payment.count({
-      where: {
-        villageId,
-        collectorUserId,
-        status: PaymentStatus.REJECTED,
-      },
-    }),
-    prisma.payment.count({
-      where: {
-        villageId,
-        collectorUserId,
-        status: PaymentStatus.ACCEPTED,
-        paymentMethod: PaymentMethod.CASH,
-      },
-    }),
-  ]);
+  const acceptedResult = await prisma.payment.aggregate({
+    where: {
+      villageId,
+      collectorUserId,
+      status: PaymentStatus.ACCEPTED,
+    },
+    _sum: { amount: true },
+    _count: { id: true },
+  });
 
   const summary: CollectorCollectionSummary = {
     totalCollected: acceptedResult._sum.amount ?? 0,
-    totalPendingAmount: pendingResult._sum.amount ?? 0,
     acceptedCount: acceptedResult._count.id,
-    pendingCount: pendingResult._count.id,
-    rejectedCount,
-    cashCount,
   };
 
   // Collection over time: fetch accepted payments by this collector
@@ -145,23 +105,8 @@ export async function getCollectorChartData(
       };
     });
 
-  // Paid vs Pending
-  const paidVsPending = [
-    {
-      label: "Paid",
-      count: summary.acceptedCount,
-      amount: summary.totalCollected,
-    },
-    {
-      label: "Pending",
-      count: summary.pendingCount,
-      amount: summary.totalPendingAmount,
-    },
-  ];
-
   return {
     summary,
     collectionOverTime,
-    paidVsPending,
   };
 }

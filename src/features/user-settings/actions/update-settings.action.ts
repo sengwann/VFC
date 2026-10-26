@@ -16,7 +16,7 @@ export type UpdateSettingsActionResult =
     };
 
 export async function updateSettingsAction(
-  formData: FormData
+  formData: FormData,
 ): Promise<UpdateSettingsActionResult> {
   const user = await requireAuthenticatedUser();
 
@@ -29,13 +29,13 @@ export async function updateSettingsAction(
     };
   }
 
-  const { theme, language } = validation.data;
+  const { language } = validation.data;
 
   try {
     await prisma.userSettings.upsert({
       where: { userId: user.id },
-      update: { theme, language },
-      create: { userId: user.id, theme, language },
+      update: { language },
+      create: { userId: user.id, language },
     });
   } catch {
     return {

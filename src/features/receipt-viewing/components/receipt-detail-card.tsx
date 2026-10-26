@@ -1,13 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { PaymentMethod, ReceiptStatus } from "@prisma/client";
+import type { ReceiptStatus } from "@prisma/client";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { useTranslation } from "@/lib/i18n/provider";
 import { cn, formatAmount, formatYangonDateTime } from "@/lib/utils";
-import { ReceiptMethodLabel } from "./receipt-method-label";
 import { ReceiptStatusBadge } from "./receipt-status-badge";
 
 export interface ReceiptDetailData {
@@ -18,9 +17,6 @@ export interface ReceiptDetailData {
   payment: {
     id: string;
     amount: number;
-    paymentMethod: PaymentMethod;
-    kpayTransactionId: string | null;
-    kpayReceiverAccount: string | null;
     voidReason: string | null;
     createdAt: Date;
     fund: { name: string };
@@ -67,7 +63,6 @@ function Missing() {
 export function ReceiptDetailCard({ receipt }: { receipt: ReceiptDetailData }) {
   const { t } = useTranslation();
   const { payment } = receipt;
-  const isKpay = payment.paymentMethod === "KPAY";
   const isVoided = receipt.status === "VOIDED";
 
   return (
@@ -128,9 +123,6 @@ export function ReceiptDetailCard({ receipt }: { receipt: ReceiptDetailData }) {
                   {formatYangonDateTime(payment.createdAt)}
                 </time>
               </DetailRow>
-              <DetailRow label={t("receipts.field.method")}>
-                <ReceiptMethodLabel method={payment.paymentMethod} />
-              </DetailRow>
               <DetailRow label={t("receipts.field.fund")}>
                 {payment.fund.name}
               </DetailRow>
@@ -146,24 +138,6 @@ export function ReceiptDetailCard({ receipt }: { receipt: ReceiptDetailData }) {
             </dl>
           </Card>
         </Section>
-
-        {isKpay ? (
-          <Section title={t("receipts.kpay.title")}>
-            <Card>
-              <dl className="divide-y px-4 sm:px-6">
-                <DetailRow label={t("receipts.kpay.txn")} mono>
-                  {payment.kpayTransactionId ?? <Missing />}
-                </DetailRow>
-                <DetailRow label={t("receipts.kpay.receiver")} mono>
-                  {payment.kpayReceiverAccount ?? <Missing />}
-                </DetailRow>
-              </dl>
-              <p className="border-t px-4 py-3 text-sm text-muted-foreground sm:px-6">
-                {t("receipts.kpay.privacy")}
-              </p>
-            </Card>
-          </Section>
-        ) : null}
       </div>
     </div>
   );

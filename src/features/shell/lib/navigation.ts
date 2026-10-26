@@ -14,7 +14,6 @@ export type NavIconName =
   | "credit-card"
   | "receipt"
   | "shield-check"
-  | "shield-alert"
   | "banknote";
 
 export type NavBadgeVariant = "default" | "alert";
@@ -81,9 +80,7 @@ export function buildVillageNavigation(params: {
   const isChief = user.role === UserRole.CHIEF;
 
   const chiefSummary = notifications?.chief ?? null;
-  const disputeCount =
-    isChief && chiefSummary ? chiefSummary.disputesNeedingAction : 0;
-  const pendingHeadlessMembers =
+    const pendingHeadlessMembers =
     isChief && chiefSummary ? chiefSummary.pendingHeadlessMembers : 0;
   const pendingMembers =
     isHeadOfHouse && notifications?.headOfHouse
@@ -145,47 +142,33 @@ export function buildVillageNavigation(params: {
         disabled: true,
         badge: "Module 18",
       };
-  const disputes: NavItem = activeMembership
-    ? {
-        label: t("nav.disputes"),
-        href: "/village/disputes",
-        iconName: "shield-alert",
-        badge: disputeCount > 0 ? formatBadgeCount(disputeCount) : undefined,
-        badgeVariant: disputeCount > 0 ? "alert" : undefined,
-      }
-    : {
-        label: t("nav.disputes"),
-        iconName: "shield-alert",
-        disabled: true,
-        badge: "Pending",
-      };
-  const audit: NavItem = {
+    const audit: NavItem = {
     label: t("nav.auditLog"),
     href: "/village/audit",
     iconName: "scroll-text",
   };
 
   if (user.role === UserRole.CHIEF) {
-    sidebarItems.push(houses, collectors, funds, receipts, disputes, audit);
+    sidebarItems.push(houses, collectors, funds, receipts, audit);
   }
   if (isHeadOfHouse) {
     sidebarItems.push(members);
   }
   if (user.role === UserRole.VILLAGER) {
-    sidebarItems.push(receipts, disputes);
+    sidebarItems.push(receipts);
   }
   if (isActiveCollector) {
     sidebarItems.push(cash);
   }
   if (user.role === UserRole.CHIEF) {
-    mobileItems.push(houses, funds, receipts, disputes);
+    mobileItems.push(houses, funds, receipts);
     if (isHeadOfHouse) {
       mobileItems.push(members);
     } else {
       mobileItems.push(collectors);
     }
   } else if (user.role === UserRole.VILLAGER && activeMembership) {
-    mobileItems.push(receipts, disputes);
+    mobileItems.push(receipts);
   }
   return {
     sidebarItems,

@@ -53,16 +53,6 @@ export async function resolveEntityInfo(
         : { label: entityId, href: null };
     }
 
-    case AuditEntityType.DISPUTE: {
-      const dispute = await prisma.dispute.findFirst({
-        where: { id: entityId, villageId },
-        select: { id: true },
-      });
-      return dispute
-        ? { label: "Dispute record", href: `/village/disputes/${entityId}` }
-        : { label: entityId, href: null };
-    }
-
     case AuditEntityType.USER: {
       const user = await prisma.user.findFirst({
         where: { id: entityId, villageId },

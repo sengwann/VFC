@@ -9,8 +9,6 @@ export interface DashboardFund {
 export interface ChiefDashboardData {
   totalHouses: number;
   totalMembers: number;
-  pendingPayments: number;
-  openDisputes: number;
   totalCollected: number;
   currentCollectorName: string | null;
 }
@@ -22,8 +20,6 @@ export interface ChiefDemographicsData {
 
 export interface CollectorDashboardData {
   acceptedCount: number;
-  rejectedCount: number;
-  cashCount: number;
 }
 
 export interface VillagerDashboardData {
@@ -32,9 +28,7 @@ export interface VillagerDashboardData {
     id: string;
     amount: number;
     status: string;
-    paymentMethod: string;
     createdAt: Date;
   }[];
   receiptsCount: number;
-  rejectedCount: number;
 }

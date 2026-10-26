@@ -157,7 +157,11 @@ export default async function SettingsPage() {
             title={t("settings.editProfile")}
           >
             <EditProfileForm
-              initialDateOfBirth={user.dateOfBirth ?? ""}
+              initialDateOfBirth={
+                user.dateOfBirth
+                  ? user.dateOfBirth.toISOString().split("T")[0]
+                  : ""
+              }
               initialEmail={user.email ?? ""}
               initialName={user.name}
               initialPhone={user.phone ?? ""}

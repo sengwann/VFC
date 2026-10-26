@@ -118,7 +118,7 @@ beforeEach(() => {
 });
 
 describe("recordCashPaymentAction", () => {
-  it("rejects cash payment when an existing KPAY payment with PENDING status exists for the same house and fund", async () => {
+  it("rejects cash payment when an existing payment already exists for the same house and fund", async () => {
     mocks.tx.payment.findFirst.mockResolvedValue({
       id: "existing-kpay-payment-id",
     });
@@ -127,8 +127,7 @@ describe("recordCashPaymentAction", () => {
 
     expect(result).toEqual({
       success: false,
-      formError:
-        "A valid or pending payment already exists for this fund and house.",
+      formError: "A valid payment already exists for this fund and house.",
     });
 
     expect(mocks.tx.payment.create).not.toHaveBeenCalled();

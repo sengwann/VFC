@@ -1,4 +1,4 @@
-import { MembershipStatus } from "@prisma/client";
+import { MembershipStatus, UserRole } from "@prisma/client";
 import { approveMemberAction } from "../../../../features/household-management/actions/approve-member.action";
 import { changeHeadAction } from "../../../../features/household-management/actions/change-head.action";
 import { rejectMemberAction } from "../../../../features/household-management/actions/reject-member.action";
@@ -11,6 +11,12 @@ export const metadata = {
   title: "Household Members | Village Fund Collection System",
 };
 
+type MemberRow = {
+  id: string;
+  name: string;
+  role: UserRole;
+  membershipStatus: MembershipStatus;
+};
 export default async function HouseholdPage() {
   const { house } = await requireHouseholdManagementAccess();
 
@@ -34,21 +40,21 @@ export default async function HouseholdPage() {
   );
 
   const pendingMembers = members.filter(
-    (member) => member.membershipStatus === MembershipStatus.PENDING,
-  );
+    (m) => m.membershipStatus === MembershipStatus.PENDING,
+  ) as MemberRow[];
 
   const activeMembers = members.filter(
-    (member) => member.membershipStatus === MembershipStatus.ACTIVE,
-  );
+    (m) => m.membershipStatus === MembershipStatus.ACTIVE,
+  ) as MemberRow[];
 
   const historicalMembers = members.filter(
-    (member) =>
-      member.membershipStatus === MembershipStatus.REJECTED ||
-      member.membershipStatus === MembershipStatus.REMOVED,
-  );
+    (m) =>
+      m.membershipStatus === MembershipStatus.REJECTED ||
+      m.membershipStatus === MembershipStatus.REMOVED,
+  ) as MemberRow[];
 
   const changeHeadCandidates = activeMembers.filter(
-    (member) => member.id !== house.headOfHouseId,
+    (m) => m.id !== house.headOfHouseId,
   );
 
   return (

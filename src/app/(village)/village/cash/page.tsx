@@ -1,4 +1,4 @@
-import { MembershipStatus, PaymentMethod } from "@prisma/client";
+import { MembershipStatus } from "@prisma/client";
 import { CashPageView } from "../../../../features/cash-payment/components/cash-page-view";
 import type { HouseOption } from "../../../../features/cash-payment/components/cash-payment-form";
 import { requireCashPaymentAccess } from "../../../../features/cash-payment/lib/cash-payment-access";
@@ -39,7 +39,7 @@ export default async function CashPage() {
   });
 
   const recentPayments = await prisma.payment.findMany({
-    where: { villageId, paymentMethod: PaymentMethod.CASH },
+    where: { villageId },
     orderBy: { createdAt: "desc" },
     take: 20,
     select: {

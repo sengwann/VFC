@@ -48,7 +48,6 @@ const ENTITY_KEYS: Record<string, TranslationKey> = {
   COLLECTOR_ASSIGNMENT: "audit.entity.collectorAssignment",
   PAYMENT: "audit.entity.payment",
   RECEIPT: "audit.entity.receipt",
-  DISPUTE: "audit.entity.dispute",
   SESSION: "audit.entity.session",
 };
 

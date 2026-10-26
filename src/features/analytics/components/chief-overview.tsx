@@ -27,21 +27,11 @@ export function ChiefOverview({
 
   return (
     <Section title={t("dashboard.chief.title")}>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatCard label={t("dashboard.stat.houses")} value={data.totalHouses} />
         <StatCard
           label={t("dashboard.stat.members")}
           value={data.totalMembers}
-        />
-        <StatCard
-          label={t("dashboard.stat.pendingPayments")}
-          tone={data.pendingPayments > 0 ? "warning" : "default"}
-          value={data.pendingPayments}
-        />
-        <StatCard
-          label={t("dashboard.stat.openDisputes")}
-          tone={data.openDisputes > 0 ? "danger" : "default"}
-          value={data.openDisputes}
         />
         <StatCard
           className="col-span-2 lg:col-span-1"

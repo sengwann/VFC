@@ -4,8 +4,7 @@ import {
   AuditActionType,
   FundStatus,
   MembershipStatus,
-  PaymentMethod,
-  PaymentStatus,
+    PaymentStatus,
   Prisma,
   ReceiptStatus,
 } from "@prisma/client";
@@ -150,7 +149,7 @@ export async function recordCashPaymentAction(
               fundId: fund.id,
               houseId,
               villageId,
-              status: { in: [PaymentStatus.ACCEPTED, PaymentStatus.PENDING] },
+              status: PaymentStatus.ACCEPTED,
             },
             select: { id: true },
           });
@@ -167,7 +166,6 @@ export async function recordCashPaymentAction(
               houseId,
               payerUserId,
               collectorUserId: collector.user.id,
-              paymentMethod: PaymentMethod.CASH,
               amount,
               status: PaymentStatus.ACCEPTED,
             },
@@ -190,7 +188,6 @@ export async function recordCashPaymentAction(
             actorUserId: collector.user.id,
             metadata: {
               amount,
-              paymentMethod: PaymentMethod.CASH,
               fundId: fund.id,
               houseId,
               payerUserId,
@@ -223,7 +220,7 @@ export async function recordCashPaymentAction(
         return {
           success: false,
           formError:
-            "A valid or pending payment already exists for this fund and house.",
+            "A valid payment already exists for this fund and house.",
         };
       }
       if (error.message === "FUND_NOT_ACTIVE") {

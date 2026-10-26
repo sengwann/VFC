@@ -8,7 +8,6 @@ export const AuditEntityType = {
   COLLECTOR_ASSIGNMENT: "COLLECTOR_ASSIGNMENT",
   PAYMENT: "PAYMENT",
   RECEIPT: "RECEIPT",
-  DISPUTE: "DISPUTE",
   SESSION: "SESSION",
 } as const;
 
@@ -65,7 +64,6 @@ export interface CollectorAssignmentAuditMetadata {
 
 export interface PaymentAuditMetadata {
   amount?: number;
-  paymentMethod?: string;
   fundId?: string;
   houseId?: string;
   previousStatus?: string;

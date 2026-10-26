@@ -88,9 +88,6 @@ export default async function ReceiptDetailPage({
         select: {
           id: true,
           amount: true,
-          paymentMethod: true,
-          kpayTransactionId: true,
-          kpayReceiverAccount: true,
           voidReason: true,
           createdAt: true,
           collectorUserId: true,

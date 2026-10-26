@@ -50,12 +50,10 @@ export default async function ReceiptsPage() {
       status: true,
       payment: {
         select: {
+          id: true,
           amount: true,
-          paymentMethod: true,
           createdAt: true,
-          fund: {
-            select: { name: true },
-          },
+          fund: { select: { name: true } },
         },
       },
     },
@@ -64,7 +62,16 @@ export default async function ReceiptsPage() {
   return (
     <div className="space-y-6">
       <ReceiptListHeader accessLevel={accessLevel} />
-      <ReceiptList limit={RECEIPT_LIMIT} receipts={receipts} />
+      <ReceiptList
+        limit={RECEIPT_LIMIT}
+        receipts={receipts.map((receipt) => ({
+          ...receipt,
+          payment: {
+            ...receipt.payment,
+            paymentMethod: "CASH",
+          },
+        }))}
+      />
     </div>
   );
 }

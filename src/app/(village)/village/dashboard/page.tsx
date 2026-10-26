@@ -1,7 +1,6 @@
 import {
   FundStatus,
   MembershipStatus,
-  PaymentMethod,
   PaymentStatus,
   UserRole,
 } from "@prisma/client";
@@ -96,22 +95,10 @@ export default async function VillageDashboardPage() {
   if (chief && activeMembership) {
     const currentPeriod = getCurrentPeriod();
 
-    const [
-      totalHouses,
-      totalMembers,
-      pendingPayments,
-      openDisputes,
-      currentCollector,
-    ] = await Promise.all([
+    const [totalHouses, totalMembers, currentCollector] = await Promise.all([
       prisma.house.count({ where: { villageId, isActive: true } }),
       prisma.user.count({
         where: { villageId, membershipStatus: MembershipStatus.ACTIVE },
-      }),
-      prisma.payment.count({
-        where: { villageId, status: PaymentStatus.PENDING },
-      }),
-      prisma.dispute.count({
-        where: { villageId, status: "OPEN" },
       }),
       prisma.collectorAssignment.findFirst({
         where: {
@@ -140,8 +127,6 @@ export default async function VillageDashboardPage() {
     chiefData = {
       totalHouses,
       totalMembers,
-      pendingPayments,
-      openDisputes,
       totalCollected,
       currentCollectorName: currentCollector?.user.name ?? null,
     };
@@ -156,32 +141,17 @@ export default async function VillageDashboardPage() {
   let collectorData: CollectorDashboardData | null = null;
 
   if (collector && collectorContext) {
-    const [acceptedCount, rejectedCount, cashCount] = await Promise.all([
+    const [acceptedCount] = await Promise.all([
       prisma.payment.count({
         where: {
           villageId,
           status: PaymentStatus.ACCEPTED,
-          collectorUserId: user.id,
-        },
-      }),
-      prisma.payment.count({
-        where: {
-          villageId,
-          status: PaymentStatus.REJECTED,
-          collectorUserId: user.id,
-        },
-      }),
-      prisma.payment.count({
-        where: {
-          villageId,
-          status: PaymentStatus.ACCEPTED,
-          paymentMethod: PaymentMethod.CASH,
           collectorUserId: user.id,
         },
       }),
     ]);
 
-    collectorData = { acceptedCount, rejectedCount, cashCount };
+    collectorData = { acceptedCount };
   }
 
   let collectorChartData: Awaited<
@@ -202,14 +172,14 @@ export default async function VillageDashboardPage() {
           villageId,
           fundId: currentFund.id,
           houseId: user.houseId,
-          status: { in: [PaymentStatus.ACCEPTED, PaymentStatus.PENDING] },
+          status: PaymentStatus.ACCEPTED,
         },
         select: { status: true },
       });
       paymentStatus = myPayment?.status ?? null;
     }
 
-    const [recentPayments, receiptsCount, rejectedCount] = await Promise.all([
+    const [recentPayments, receiptsCount] = await Promise.all([
       prisma.payment.findMany({
         where: { payerUserId: user.id, villageId },
         orderBy: { createdAt: "desc" },
@@ -218,19 +188,11 @@ export default async function VillageDashboardPage() {
           id: true,
           amount: true,
           status: true,
-          paymentMethod: true,
           createdAt: true,
         },
       }),
       prisma.receipt.count({
         where: { villageId, payment: { payerUserId: user.id } },
-      }),
-      prisma.payment.count({
-        where: {
-          payerUserId: user.id,
-          villageId,
-          status: PaymentStatus.REJECTED,
-        },
       }),
     ]);
 
@@ -238,7 +200,6 @@ export default async function VillageDashboardPage() {
       paymentStatus,
       recentPayments,
       receiptsCount,
-      rejectedCount,
     };
   }
 
