@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Next.js App Router Template
 
 A minimal, TypeScript-first starter using the Next.js App Router.
@@ -17,3 +18,6 @@ Open [http://localhost:5000](http://localhost:5000) to view the app.
 - `app/page.tsx` — home page
 - `app/globals.css` — global styles and responsive layout
 - `next.config.ts` — Next.js configuration
+=======
+# VFC
+>>>>>>> 76d1db57108fd6eedfb2059c28fbf3ed5211ef86
