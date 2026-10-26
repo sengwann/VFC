@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+enum UserRole { 
+SYSTEM_ADMIN 
+CHIEF 
+VILLAGER 
+}
+enum VillageStatus { 
+ACTIVE 
+SUSPENDED 
+DEACTIVATED 
+}
+enum MembershipStatus { 
+PENDING 
+ACTIVE 
+REJECTED 
+REMOVED 
+}
+enum PaymentMethod { 
+KPAY 
+CASH 
+}
+enum PaymentStatus { 
+PENDING 
+ACCEPTED 
+REJECTED 
+VOIDED 
+}
+enum ReceiptStatus { 
+ACTIVE 
+VOIDED 
+}
+enum DisputeStatus { 
+OPEN 
+UNDER_REVIEW 
+RESOLVED 
+REJECTED 
+}
+enum AuditActionType { 
+CREATE 
+UPDATE 
+DELETE 
+STATUS_CHANGE 
+APPROVE 
+REJECT 
+REMOVE 
+ASSIGN 
+VOID 
+ACCEPT 
+LOGIN 
+LOGOUT 
+LOGIN_THROTTLED 
+}
+enum FundStatus { 
+DRAFT 
+ACTIVE 
+CLOSED 
+}
+
+model Village {
+  id String @id @default(cuid())
+  villageCode String @unique
+  name String
+  status VillageStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users User[]
+  houses House[]
+  collectorAssignments CollectorAssignment[]
+  funds Fund[]
+  payments Payment[]
+  receipts Receipt[]
+  disputes Dispute[]
+  auditLogs AuditLog[]
+  @@index([status])
+}
+
+model User {
+  id String @id @default(cuid())
+  villageId String?
+  village Village? @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  settings UserSettings?
+  houseId String?
+  house House? @relation("HouseMembers", fields: [houseId], references: [id], onDelete: SetNull)
+  headedHouse House? @relation("HouseHead")
+  role UserRole @default(VILLAGER)
+  membershipStatus MembershipStatus?
+  sessionVersion Int @default(0)
+  name String
+  /// Unique per village (see @@unique below). SYSTEM_ADMIN rows have no
+  /// village; their uniqueness is enforced by partial unique indexes that
+  /// Prisma cannot model (see the per_village_identifiers migration).
+  email String?
+  phone String?
+  passwordHash String
+  /// True for a newly created Chief until the initial password is changed.
+  mustChangePassword Boolean @default(false)
+  dateOfBirth DateTime? @db.Date
+  kpayAccountName String?
+  kpayAccountNumber String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  collectorAssignments CollectorAssignment[]
+  paymentsAsPayer Payment[] @relation("PaymentPayer")
+  paymentsAsCollector Payment[] @relation("PaymentCollector")
+  raisedDisputes Dispute[] @relation("DisputeRaisedBy")
+  auditLogs AuditLog[] @relation("AuditLogActor")
+  @@index([villageId])
+  @@index([houseId])
+  @@index([role])
+  @@index([villageId, role])
+  @@index([villageId, membershipStatus])
+  @@index([villageId, houseId])
+  @@index([villageId, dateOfBirth])
+  @@unique([villageId, email])
+  @@unique([villageId, phone])
+}
+
+model House {
+  id String @id @default(cuid())
+  villageId String
+  village Village @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  houseNumber String
+  headOfHouseId String? @unique
+  headOfHouse User? @relation("HouseHead", fields: [headOfHouseId], references: [id], onDelete: SetNull)
+  members User[] @relation("HouseMembers")
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  payments Payment[]
+  @@unique([villageId, houseNumber])
+  @@index([villageId])
+  @@index([isActive])
+  @@index([villageId, isActive])
+}
+
+model CollectorAssignment {
+  id String @id @default(cuid())
+  villageId String
+  village Village @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  year Int
+  month Int
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([villageId, userId, year, month])
+  @@index([villageId])
+  @@index([userId])
+  @@index([villageId, year, month])
+  @@index([villageId, isActive])
+  @@index([villageId, year, month, isActive])
+}
+
+model Fund {
+  id String @id @default(cuid())
+  villageId String
+  village Village @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  name String
+  description String?
+  targetAmount Int
+  startDate DateTime @db.Date
+  endDate DateTime @db.Date
+  status FundStatus @default(DRAFT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  payments Payment[]
+  @@index([villageId])
+  @@index([status])
+  @@index([villageId, status])
+  @@index([villageId, startDate, endDate])
+}
+
+model Payment {
+  id String @id @default(cuid())
+  villageId String
+  village Village @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  fundId String
+  fund Fund @relation(fields: [fundId], references: [id], onDelete: Restrict)
+  houseId String
+  house House @relation(fields: [houseId], references: [id], onDelete: Restrict)
+  payerUserId String
+  payer User @relation("PaymentPayer", fields: [payerUserId], references: [id], onDelete: Restrict)
+  collectorUserId String?
+  collector User? @relation("PaymentCollector", fields: [collectorUserId], references: [id], onDelete: SetNull)
+  paymentMethod PaymentMethod
+  amount Int
+  status PaymentStatus @default(PENDING)
+  kpayTransactionId String? @unique @db.VarChar(64)
+  kpaySenderName String?
+  kpaySenderAccount String?
+  kpayReceiverAccount String?
+  rejectionNote String?
+  voidReason String?
+  receipt Receipt?
+  disputes Dispute[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([villageId])
+  @@index([fundId])
+  @@index([houseId])
+  @@index([payerUserId])
+  @@index([collectorUserId])
+  @@index([status])
+  @@index([fundId, houseId])
+  @@index([fundId, houseId, status])
+  @@index([villageId, status])
+}
+
+model Receipt {
+  id String @id @default(cuid())
+  receiptNumber String @unique
+  paymentId String @unique
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  villageId String
+  village Village @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  status ReceiptStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([villageId])
+  @@index([status])
+  @@index([villageId, status])
+}
+
+model Dispute {
+  id String @id @default(cuid())
+  villageId String
+  village Village @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  paymentId String
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  raisedByUserId String
+  raisedBy User @relation("DisputeRaisedBy", fields: [raisedByUserId], references: [id], onDelete: Restrict)
+  status DisputeStatus @default(OPEN)
+  description String
+  resolutionNote String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([villageId])
+  @@index([paymentId])
+  @@index([raisedByUserId])
+  @@index([status])
+  @@index([villageId, status])
+  @@index([paymentId, status])
+  @@index([villageId, createdAt])
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  villageId String?
+  village Village? @relation(fields: [villageId], references: [id], onDelete: SetNull)
+  actorUserId String?
+  actor User? @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actionType AuditActionType
+  entityType String
+  entityId String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  @@index([villageId])
+  @@index([actorUserId])
+  @@index([actionType])
+  @@index([entityType])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([villageId, createdAt])
+  @@index([villageId, actionType])
+}
+
+enum LanguagePreference { 
+EN 
+MY 
+}
+
+model UserSettings {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language LanguagePreference @default(EN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId])
+}
+
+/// Login brute-force throttle counters. Keys are HMAC hashes; no raw
+/// identifiers, user ids or IP addresses are stored. Rows are disposable.
+model LoginThrottleState {
+  id String @id @default(cuid())
+  scope String
+  keyHash String
+  attempts Int @default(0)
+  windowStartedAt DateTime
+  lockedUntil DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([scope, keyHash])
+  @@index([updatedAt])
+}

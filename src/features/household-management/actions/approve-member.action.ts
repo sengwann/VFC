@@ -1,0 +1,115 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { AuditActionType, MembershipStatus, Prisma } from "@prisma/client";
+import { prisma } from "../../../lib/prisma";
+import { withSerializableRetry } from "../../../lib/db/transaction";
+import { lockActiveVillage } from "../../../lib/authz/village";
+import { lockHouse } from "../../../lib/authz/house";
+import { requireHouseholdManagementAccess } from "../lib/household-access";
+import { revalidateVillageShell } from "../../shell/lib/shell-revalidation";
+import { canApprovePendingMember } from "../lib/membership-rules";
+import { AuditEntityType, createAuditLog } from "../../../lib/audit";
+
+function getFormDataString(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
+export async function approveMemberAction(formData: FormData): Promise<void> {
+  const { user, house } = await requireHouseholdManagementAccess();
+
+  const memberId = getFormDataString(formData, "memberId");
+  if (!memberId) {
+    redirect("/village/household");
+  }
+
+  const target = await prisma.user.findFirst({
+    where: {
+      id: memberId,
+      houseId: house.id,
+      villageId: house.villageId,
+    },
+    select: {
+      id: true,
+      membershipStatus: true,
+    },
+  });
+
+  if (!target || !canApprovePendingMember(target, house, user.id)) {
+    redirect("/village/household");
+  }
+
+  try {
+    await withSerializableRetry(() =>
+      prisma.$transaction(
+        async (tx) => {
+          if (!(await lockActiveVillage(tx, house.villageId))) {
+            throw new Error("VILLAGE_INACTIVE");
+          }
+
+          // B05 hardening: village-then-house lock ordering. Lock the house
+          // row before reading/using house state so this PENDING→ACTIVE
+          // transition cannot race a concurrent house deactivation.
+          const lockedHouse = await lockHouse(tx, house.id);
+
+          if (!lockedHouse) {
+            throw new Error("HOUSEHOLD_ACCESS_CHANGED");
+          }
+
+          const currentHouse = await tx.house.findFirst({
+            where: {
+              id: house.id,
+              villageId: house.villageId,
+              isActive: true,
+              headOfHouseId: user.id,
+            },
+            select: { id: true },
+          });
+
+          if (!currentHouse) {
+            throw new Error("HOUSEHOLD_ACCESS_CHANGED");
+          }
+
+          const updated = await tx.user.updateMany({
+            where: {
+              id: target.id,
+              houseId: currentHouse.id,
+              villageId: house.villageId,
+              membershipStatus: MembershipStatus.PENDING,
+              NOT: { id: user.id },
+            },
+            data: {
+              membershipStatus: MembershipStatus.ACTIVE,
+            },
+          });
+
+          if (updated.count !== 1) {
+            throw new Error("INVALID_MEMBERSHIP_STATE");
+          }
+
+          await createAuditLog(tx, {
+            actionType: AuditActionType.APPROVE,
+            entityType: AuditEntityType.USER,
+            entityId: target.id,
+            villageId: house.villageId,
+            actorUserId: user.id,
+            metadata: {
+              previousMembershipStatus: MembershipStatus.PENDING,
+              newMembershipStatus: MembershipStatus.ACTIVE,
+              houseId: house.id,
+            },
+          });
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        },
+      ),
+    );
+  } catch {
+    redirect("/village/household");
+  }
+
+  revalidateVillageShell();
+  redirect("/village/household");
+}
