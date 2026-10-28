@@ -1,18 +1,14 @@
-<<<<<<< HEAD
-node_modules
-.next
-out
+# Environment files. Broader than the .env / .env.* rules further down;
+# the !.env.example re-include in the block below must stay after this.
 .env*
-!.env.example
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-*.tsbuildinfo.agents/
+
+# Agent / editor tooling and Replit
+.agents/
 .claude/
 .cursor/
 .devin/
 .replit
-=======
+
 # Logs
 logs
 *.log
@@ -162,4 +158,3 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
->>>>>>> 76d1db57108fd6eedfb2059c28fbf3ed5211ef86
