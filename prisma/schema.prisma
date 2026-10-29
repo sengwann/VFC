@@ -45,6 +45,8 @@ ACCEPT
 LOGIN 
 LOGOUT 
 LOGIN_THROTTLED 
+CANCEL 
+COMPLETE 
 }
 enum FundStatus { 
 DRAFT 
@@ -66,6 +68,8 @@ model Village {
   payments Payment[]
   receipts Receipt[]
   auditLogs AuditLog[]
+  deactivationRequests VillageDeactivationRequest[]
+  notifications Notification[]
   @@index([status])
 }
 
@@ -96,6 +100,11 @@ model User {
   paymentsAsPayer Payment[] @relation("PaymentPayer")
   paymentsAsCollector Payment[] @relation("PaymentCollector")
   auditLogs AuditLog[] @relation("AuditLogActor")
+  deactivationRequestsMade VillageDeactivationRequest[] @relation("DeactivationRequester")
+  deactivationRequestsRejected VillageDeactivationRequest[] @relation("DeactivationRejecter")
+  deactivationRequestsApproved VillageDeactivationRequest[] @relation("DeactivationApprover")
+  deactivationRequestsCancelled VillageDeactivationRequest[] @relation("DeactivationCanceller")
+  notifications Notification[]
   @@index([villageId])
   @@index([houseId])
   @@index([role])
@@ -256,4 +265,90 @@ model LoginThrottleState {
   updatedAt DateTime @updatedAt
   @@unique([scope, keyHash])
   @@index([updatedAt])
+}
+
+enum DeactivationRequestStatus { 
+PENDING 
+APPROVED 
+REJECTED 
+CANCELLED 
+COMPLETED 
+}
+
+enum NotificationType { 
+DEACTIVATION_REQUESTED 
+DEACTIVATION_APPROVED 
+DEACTIVATION_REJECTED 
+DEACTIVATION_CANCELLED 
+DEACTIVATION_COMPLETED 
+DEACTIVATION_REMINDER 
+}
+
+/// One Chief-initiated request to deactivate a village, and everything that
+/// happened to it. The workflow state lives here, NOT in Village.status:
+/// read-only mode is "this village has an APPROVED request" (see
+/// docs/village-deactivation-design-notes.md). Rows are never deleted.
+///
+/// The partial unique index (one PENDING/APPROVED request per village) and the
+/// CHECK constraints (field shape per status, 24h countdown, non-blank
+/// reasons) cannot be expressed in Prisma. They are written by hand at the end
+/// of the village_deactivation migration, like the partial indexes in the
+/// per_village_identifiers migration.
+model VillageDeactivationRequest {
+  id String @id @default(cuid())
+  villageId String
+  village Village @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  requesterUserId String
+  requester User @relation("DeactivationRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
+  reason String
+  status DeactivationRequestStatus @default(PENDING)
+  rejectedByUserId String?
+  rejectedBy User? @relation("DeactivationRejecter", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
+  rejectedAt DateTime?
+  rejectionReason String?
+  /// rejectedAt + the configured cooldown. A new request is refused until then.
+  cooldownEndsAt DateTime?
+  approvedByUserId String?
+  approvedBy User? @relation("DeactivationApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  approvedAt DateTime?
+  /// Always approvedAt + 24 hours (enforced by a CHECK). Written once, never
+  /// recalculated.
+  scheduledDeactivationAt DateTime?
+  cancelledByUserId String?
+  cancelledBy User? @relation("DeactivationCanceller", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  cancelledAt DateTime?
+  cancellationReason String?
+  completedAt DateTime?
+  /// Who completed it, for example "SYSTEM:deactivation-worker".
+  completedBy String?
+  processingAttempts Int @default(0)
+  lastProcessingError String?
+  lastProcessingAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notifications Notification[]
+  @@index([status, scheduledDeactivationAt])
+  @@index([villageId, status, cooldownEndsAt])
+  @@index([villageId, createdAt])
+  @@index([requesterUserId])
+}
+
+/// In-app notification. dedupeKey makes delivery idempotent: the same event for
+/// the same user can only be stored once, however often a retry runs. The text
+/// is not stored; it is rendered from i18n keys and params when read.
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  villageId String?
+  village Village? @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  requestId String?
+  request VillageDeactivationRequest? @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  type NotificationType
+  params Json?
+  dedupeKey String @unique
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, readAt, createdAt])
+  @@index([requestId])
 }
