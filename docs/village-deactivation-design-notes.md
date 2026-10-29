@@ -32,17 +32,13 @@ The guard must be two statements inside the mutation's transaction:
 
 A one-statement guard, or a lock-only approval, let a transaction with a stale snapshot commit after read-only began. Approve, cancel and complete therefore start with `UPDATE "Village" SET "updatedAt" = now()` (takes the row lock and bumps the row version), run as Serializable through the existing `withSerializableRetry`. A mutation that started before approval then fails with 40001 and retries into the guard. Lock order stays village, then house.
 
-## Q5: suspension vs Chief cancellation (needs your decision)
+## Q5: suspension during the countdown (decided)
 
-Conflict: a System Admin can suspend a village, and a SUSPENDED village blocks Chief access. If a village is suspended while a request is APPROVED, the Chief cannot cancel before the deadline. Rules section 6.6 says cancellation must not reactivate a suspended village, and section 8.5 says suspension is a separate permission that must not silently cancel or complete. The rules do not say how the two coexist.
+Conflict: a SUSPENDED village blocks Chief access, so suspending during an APPROVED request would leave the Chief unable to cancel before the deadline. Rules 6.6 and 8.5 keep suspension and cancellation separate.
 
-Options:
+Decision: suspension is blocked while the village has an APPROVED request. Chief cancellation therefore always stays possible, and the rules about suspension are not otherwise changed.
 
-1. Block `suspend` while an APPROVED request exists. Smallest change. The Admin who wants to stop the countdown has no tool for it, though: only the Chief can cancel.
-2. Let a Chief of a SUSPENDED village use only the cancel action. Weakens the "suspended blocks Chief" rule.
-3. Let suspension proceed and let completion deactivate a suspended village. Leaves an approved request uncancellable, which you ruled out.
-
-Proposal: option 1. In `changeVillageStatus`, after the village-row UPDATE, refuse `suspend` with a new outcome (for example `BLOCKED_BY_DEACTIVATION`) when an APPROVED request exists. `reactivate` is unaffected. A village that is already SUSPENDED cannot get an approval (approval requires ACTIVE), so no approved request can sit on a suspended village. Completion still accepts a SUSPENDED village defensively. Not implemented; I will do it in Phase 4 only if you approve.
+Implementation (Phase 4, not done yet): in `changeVillageStatus`, after the village-row UPDATE, refuse `suspend` with a new outcome (for example `BLOCKED_BY_DEACTIVATION`) when an APPROVED request exists. `reactivate` is unaffected. Approval already requires an ACTIVE village, so an approved request can never sit on a suspended village. Completion still accepts a SUSPENDED village defensively. The guard check runs under the same Serializable transaction and village-row lock as approval, so approve and suspend cannot both commit.
 
 ## Worker (Phase 7)
 
