@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
     reserveSignupAttempt: vi.fn(),
     createAuditLog: vi.fn(),
     revalidate: vi.fn(),
+    guardVillageWrite: vi.fn(),
   };
 });
 
@@ -30,6 +31,9 @@ vi.mock("@/lib/auth/password", () => ({ hashPassword: mocks.hashPassword }));
 vi.mock("@/lib/auth/client-ip", () => ({ getClientIp: mocks.getClientIp }));
 vi.mock("@/lib/auth/login-throttle", () => ({
   reserveSignupAttempt: mocks.reserveSignupAttempt,
+}));
+vi.mock("@/lib/authz/village", () => ({
+  guardVillageWrite: mocks.guardVillageWrite,
 }));
 vi.mock("@/lib/audit", () => ({
   AuditEntityType: { USER: "USER" },
@@ -59,6 +63,7 @@ function form(overrides: Record<string, string> = {}): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.guardVillageWrite.mockResolvedValue({ ok: true });
   mocks.getClientIp.mockResolvedValue("203.0.113.7");
   mocks.reserveSignupAttempt.mockResolvedValue({
     blocked: false,
@@ -129,6 +134,33 @@ describe("registerVillagerAction", () => {
     });
 
     mocks.tx.village.findUnique.mockResolvedValueOnce(null);
+    expect(await registerVillagerAction(form())).toEqual({
+      success: false,
+      formError: "Invalid village code.",
+    });
+    expect(mocks.tx.user.create).not.toHaveBeenCalled();
+  });
+
+  it("blocks self-registration while the village is read-only, with a machine-readable code", async () => {
+    mocks.guardVillageWrite.mockResolvedValue({
+      ok: false,
+      reason: "VILLAGE_READ_ONLY",
+    });
+
+    const result = await registerVillagerAction(form());
+
+    expect(result).toMatchObject({ success: false, code: "VILLAGE_READ_ONLY" });
+    expect(mocks.guardVillageWrite).toHaveBeenCalledWith(mocks.tx, "v1");
+    expect(mocks.tx.user.create).not.toHaveBeenCalled();
+    expect(mocks.createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("treats a village the guard reports as inactive like an invalid code", async () => {
+    mocks.guardVillageWrite.mockResolvedValue({
+      ok: false,
+      reason: "VILLAGE_INACTIVE",
+    });
+
     expect(await registerVillagerAction(form())).toEqual({
       success: false,
       formError: "Invalid village code.",

@@ -17,6 +17,12 @@ import {
   isUniqueViolation,
 } from "@/lib/db/unique-violation";
 import { lockHouse } from "@/lib/authz/house";
+import { guardVillageWrite } from "@/lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  VILLAGE_READ_ONLY_MESSAGE,
+  type VillageReadOnlyCode,
+} from "@/features/village-deactivation/lib/village-deactivation-rules";
 import { revalidateVillageShell } from "../../shell/lib/shell-revalidation";
 import {
   validateRegisterInput,
@@ -32,6 +38,8 @@ export type RegisterVillagerActionResult =
   | {
       success: false;
       formError?: string;
+      /** Set when the village is read-only (approved deactivation). */
+      code?: VillageReadOnlyCode;
       fieldErrors?: Partial<Record<RegisterField, string>>;
     };
 
@@ -39,6 +47,13 @@ class RegistrationInputError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "RegistrationInputError";
+  }
+}
+
+class VillageReadOnlyError extends Error {
+  constructor() {
+    super(VILLAGE_READ_ONLY_CODE);
+    this.name = "VillageReadOnlyError";
   }
 }
 
@@ -96,6 +111,18 @@ export async function registerVillagerAction(
             throw new RegistrationInputError("Invalid village code.");
           }
 
+          // Canonical guard: takes the village lock and refuses while the
+          // village has an approved deactivation request (read-only).
+          const guard = await guardVillageWrite(tx, village.id);
+
+          if (!guard.ok) {
+            if (guard.reason === "VILLAGE_READ_ONLY") {
+              throw new VillageReadOnlyError();
+            }
+
+            throw new RegistrationInputError("Invalid village code.");
+          }
+
           const house = await tx.house.findUnique({
             where: {
               villageId_houseNumber: {
@@ -117,9 +144,8 @@ export async function registerVillagerAction(
           // B05 hardening: lock the house row BEFORE creating the PENDING
           // membership, and treat the locked row's isActive as authoritative.
           // This serializes signup against concurrent house deactivation.
-          // Lock-ordering note: public signup does not take the village row
-          // lock; village status is checked inside this Serializable
-          // transaction above, and the house lock covers the B05 race.
+          // Lock-ordering note: the village guard above takes the village row
+          // lock first, then this house lock, as every other flow does.
           const lockedHouse = await lockHouse(tx, house.id);
 
           if (!lockedHouse || !lockedHouse.isActive) {
@@ -176,6 +202,14 @@ export async function registerVillagerAction(
       redirectTo: `/login?registered=1&village=${encodeURIComponent(villageCode)}`,
     };
   } catch (error) {
+    if (error instanceof VillageReadOnlyError) {
+      return {
+        success: false,
+        formError: VILLAGE_READ_ONLY_MESSAGE,
+        code: VILLAGE_READ_ONLY_CODE,
+      };
+    }
+
     if (error instanceof RegistrationInputError) {
       return {
         success: false,

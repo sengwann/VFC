@@ -14,6 +14,12 @@ import { createAuditLog, AuditEntityType } from "../../../lib/audit";
 import { isFundOpenForPayment } from "../../fund-management/lib/fund-lifecycle";
 import { getFundAmountPerHouse } from "../../fund-management/lib/fund-target";
 import { generateReceiptNumber } from "@/lib/receipts/receipt-number";
+import { guardVillageWrite } from "@/lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  VILLAGE_READ_ONLY_MESSAGE,
+  type VillageReadOnlyCode,
+} from "../../village-deactivation/lib/village-deactivation-rules";
 import { requireCashPaymentAccess } from "../lib/cash-payment-access";
 import {
   validateCashPaymentInput,
@@ -25,6 +31,8 @@ export type RecordCashPaymentActionResult =
   | {
       success: false;
       formError?: string;
+      /** Set when the village is read-only (approved deactivation). */
+      code?: VillageReadOnlyCode;
       fieldErrors?: Partial<Record<CashPaymentField, string>>;
     };
 
@@ -90,6 +98,14 @@ export async function recordCashPaymentAction(
     await withSerializableRetry(() =>
       prisma.$transaction(
         async (tx) => {
+          // First statement of the transaction: nothing below may run, and
+          // nothing may commit, once the village is read-only.
+          const guard = await guardVillageWrite(tx, villageId);
+
+          if (!guard.ok) {
+            throw new Error(guard.reason);
+          }
+
           const currentFund = await tx.fund.findUnique({
             where: { id: fund.id },
             select: {
@@ -201,6 +217,13 @@ export async function recordCashPaymentAction(
     return { success: true };
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === VILLAGE_READ_ONLY_CODE) {
+        return {
+          success: false,
+          formError: VILLAGE_READ_ONLY_MESSAGE,
+          code: VILLAGE_READ_ONLY_CODE,
+        };
+      }
       if (error.message === "NO_ELIGIBLE_HOUSES") {
         return {
           success: false,

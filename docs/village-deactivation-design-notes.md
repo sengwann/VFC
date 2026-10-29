@@ -32,6 +32,29 @@ The guard must be two statements inside the mutation's transaction:
 
 A one-statement guard, or a lock-only approval, let a transaction with a stale snapshot commit after read-only began. Approve, cancel and complete therefore start with `UPDATE "Village" SET "updatedAt" = now()` (takes the row lock and bumps the row version), run as Serializable through the existing `withSerializableRetry`. A mutation that started before approval then fails with 40001 and retries into the guard. Lock order stays village, then house.
 
+## Phase 2: the guard and the mutation inventory
+
+`guardVillageWrite(tx, villageId)` in `src/lib/authz/village.ts` replaces `lockActiveVillage` (removed; there is exactly one guard). It returns `{ ok: true }` or `{ ok: false, reason }` where reason is `VILLAGE_INACTIVE` (existing behavior) or `VILLAGE_READ_ONLY`. The decision itself is the pure `evaluateVillageWrite` in `village-deactivation-rules.ts`.
+
+How blocked writes answer (machine-readable, reads untouched):
+
+- Actions that return a result object return `{ success: false, code: "VILLAGE_READ_ONLY", ... }` plus an English fallback message.
+- Actions that redirect go back to the same page with `?error=VILLAGE_READ_ONLY`.
+- Nothing is gated at route, layout or page level; a test fails if `guardVillageWrite` appears under `src/app`.
+
+The 21 guarded entry points: record cash payment, void payment, assign collector, deactivate collector assignment, activate / close / create / update fund, create / deactivate / reactivate / rename house, approve member, reject member, change head, chief approve first member, chief reject pending member, remove member, submit rejoin request, register villager, update profile.
+
+Decisions applied: Q1 (profile edits blocked while read-only; password, language and sign-out stay allowed) and Q3 (fund create, update and close run in one transaction with the guard and the audit entry).
+
+Behavior changes to know about:
+
+- Before Phase 2, assign/deactivate collector, record/void payment, activate/close/create/update fund, remove member and rejoin did not check the village row at all (the session check made it unreachable in practice). They now also refuse an inactive village inside the transaction.
+- Profile edits only block on read-only; an inactive village keeps today's behavior there.
+- Registration and rejoin now take the village row lock before the house lock, the same order as every other flow.
+- `src/lib/authz/village.ts` imports the pure rules file from the feature folder (no cycle: the rules file has no imports).
+
+Exempt server actions (listed with reasons in `village-write-guard-coverage.test.ts`): login, logout, change password, language settings, village-code lookup, payment-status search, create village, and the three System Admin lifecycle actions (suspend is blocked during the countdown in Phase 4; direct deactivation is removed in Phase 3).
+
 ## Q5: suspension during the countdown (decided)
 
 Conflict: a SUSPENDED village blocks Chief access, so suspending during an APPROVED request would leave the Chief unable to cancel before the deadline. Rules 6.6 and 8.5 keep suspension and cancellation separate.

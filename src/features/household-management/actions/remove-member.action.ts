@@ -4,6 +4,11 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { getCurrentPeriod } from "../../../lib/authz";
+import { guardVillageWrite } from "../../../lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  withReadOnlyError,
+} from "../../village-deactivation/lib/village-deactivation-rules";
 import { withSerializableRetry } from "../../../lib/db/transaction";
 import { revalidateVillageShell } from "../../shell/lib/shell-revalidation";
 import { requireHouseholdManagementAccess } from "../lib/household-access";
@@ -51,12 +56,19 @@ export async function removeMemberAction(formData: FormData): Promise<void> {
 
   const currentPeriod = getCurrentPeriod();
   let removed = false;
+  let readOnly = false;
 
   // redirect() works by throwing, so it must stay outside this try/catch.
   try {
     await withSerializableRetry(() =>
       prisma.$transaction(
         async (tx) => {
+          const guard = await guardVillageWrite(tx, house.villageId);
+
+          if (!guard.ok) {
+            throw new Error(guard.reason);
+          }
+
           await removeMemberAndDeactivateAssignments(tx, {
             actorUserId: user.id,
             houseId: house.id,
@@ -75,8 +87,15 @@ export async function removeMemberAction(formData: FormData): Promise<void> {
     // Expected race outcomes (head changed, member already removed) are
     // handled silently, like the other household actions. Anything else is
     // logged so a real failure is not hidden.
+    const message = error instanceof Error ? error.message : "";
+
+    readOnly = message === VILLAGE_READ_ONLY_CODE;
+
+    // Read-only and an inactive village are expected outcomes of the guard.
     const isKnown =
-      error instanceof Error && KNOWN_REMOVE_MEMBER_ERRORS.has(error.message);
+      readOnly ||
+      message === "VILLAGE_INACTIVE" ||
+      KNOWN_REMOVE_MEMBER_ERRORS.has(message);
 
     if (!isKnown) {
       console.error("removeMemberAction failed", error);
@@ -85,6 +104,10 @@ export async function removeMemberAction(formData: FormData): Promise<void> {
 
   if (removed) {
     revalidateVillageShell();
+  }
+
+  if (readOnly) {
+    redirect(withReadOnlyError("/village/household"));
   }
 
   redirect("/village/household");

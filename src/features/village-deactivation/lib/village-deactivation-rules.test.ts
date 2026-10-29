@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEACTIVATION_COUNTDOWN_MS,
+  VILLAGE_READ_ONLY_CODE,
   canTransitionRequest,
   computeCooldownEndsAt,
   computeScheduledDeactivationAt,
@@ -9,10 +10,12 @@ import {
   evaluateApproval,
   evaluateCancellation,
   evaluateCompletion,
+  evaluateVillageWrite,
   evaluateNewRequest,
   evaluateRejection,
   isReadOnlyStatus,
   isUnresolved,
+  withReadOnlyError,
   type DeactivationAction,
   type DeactivationRequestStatus,
 } from "./village-deactivation-rules";
@@ -332,5 +335,48 @@ describe("dueReminderOffsetsMs", () => {
     expect(
       dueReminderOffsetsMs({ scheduledDeactivationAt: deadline, offsetsMs, now: deadline }),
     ).toEqual([]);
+  });
+});
+
+describe("evaluateVillageWrite", () => {
+  it("allows writes on an ACTIVE village with no approved request", () => {
+    expect(
+      evaluateVillageWrite({ villageStatus: "ACTIVE", hasApprovedRequest: false }),
+    ).toEqual({ ok: true });
+  });
+
+  it("blocks an ACTIVE village with an APPROVED request as read-only", () => {
+    expect(
+      evaluateVillageWrite({ villageStatus: "ACTIVE", hasApprovedRequest: true }),
+    ).toEqual({ ok: false, reason: "VILLAGE_READ_ONLY" });
+  });
+
+  it("reports an inactive or missing village as inactive, never read-only", () => {
+    for (const villageStatus of ["SUSPENDED", "DEACTIVATED", null, "unknown"]) {
+      for (const hasApprovedRequest of [false, true]) {
+        expect(evaluateVillageWrite({ villageStatus, hasApprovedRequest })).toEqual({
+          ok: false,
+          reason: "VILLAGE_INACTIVE",
+        });
+      }
+    }
+  });
+
+  it("uses the same code string the actions return", () => {
+    expect(VILLAGE_READ_ONLY_CODE).toBe("VILLAGE_READ_ONLY");
+  });
+});
+
+describe("withReadOnlyError", () => {
+  it("adds the error parameter to a path", () => {
+    expect(withReadOnlyError("/village/funds/f1")).toBe(
+      "/village/funds/f1?error=VILLAGE_READ_ONLY",
+    );
+  });
+
+  it("appends to an existing query string", () => {
+    expect(withReadOnlyError("/village/houses?x=1")).toBe(
+      "/village/houses?x=1&error=VILLAGE_READ_ONLY",
+    );
   });
 });

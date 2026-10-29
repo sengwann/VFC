@@ -14,12 +14,20 @@ import {
   type AssignCollectorField,
 } from "../lib/collector-assignment-validators";
 import { AuditEntityType, createAuditLog } from "../../../lib/audit";
+import { guardVillageWrite } from "../../../lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  VILLAGE_READ_ONLY_MESSAGE,
+  type VillageReadOnlyCode,
+} from "../../village-deactivation/lib/village-deactivation-rules";
 
 export type AssignCollectorActionResult =
   | { success: true }
   | {
       success: false;
       formError?: string;
+      /** Set when the village is read-only (approved deactivation). */
+      code?: VillageReadOnlyCode;
       fieldErrors?: Partial<Record<AssignCollectorField, string>>;
     };
 
@@ -71,6 +79,12 @@ export async function assignCollectorAction(
     await withSerializableRetry(() =>
       prisma.$transaction(
         async (tx) => {
+          const guard = await guardVillageWrite(tx, villageId);
+
+          if (!guard.ok) {
+            throw new Error(guard.reason);
+          }
+
           const activeTarget = await tx.user.findFirst({
             where: {
               id: userId,
@@ -179,6 +193,14 @@ export async function assignCollectorAction(
     );
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === VILLAGE_READ_ONLY_CODE) {
+        return {
+          success: false,
+          formError: VILLAGE_READ_ONLY_MESSAGE,
+          code: VILLAGE_READ_ONLY_CODE,
+        };
+      }
+
       if (error.message === "TARGET_USER_NOT_ELIGIBLE") {
         return {
           success: false,

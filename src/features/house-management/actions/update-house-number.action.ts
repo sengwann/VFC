@@ -5,7 +5,8 @@ import { AuditActionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireChief } from "@/lib/authz";
 import { redirectForbidden } from "@/lib/authz/authz.errors";
-import { lockActiveVillage } from "@/lib/authz/village";
+import { guardVillageWrite } from "@/lib/authz/village";
+import { VILLAGE_READ_ONLY_CODE } from "@/features/village-deactivation/lib/village-deactivation-rules";
 import { lockHouse } from "@/lib/authz/house";
 import { validateHouseNumber, type HouseField } from "../lib/house-validators";
 import type { HouseErrorCode } from "../lib/house-error-text";
@@ -20,6 +21,8 @@ export type UpdateHouseActionResult =
       /** "stale" means: the house may have changed or no longer exists; ask
        *  the user to refresh and retry. */
       formError?: "generic" | "stale";
+      /** Set when the village is read-only (approved deactivation). */
+      code?: typeof VILLAGE_READ_ONLY_CODE;
       fieldErrors?: Partial<Record<HouseField, HouseErrorCode>>;
     };
 
@@ -50,12 +53,17 @@ export async function updateHouseNumberAction(
     | "unchanged"
     | "not_found"
     | "conflict"
-    | "village_inactive";
+    | "village_inactive"
+    | "village_read_only";
 
   try {
     outcome = await prisma.$transaction(async (tx) => {
-      if (!(await lockActiveVillage(tx, villageId))) {
-        return "village_inactive" as const;
+      const guard = await guardVillageWrite(tx, villageId);
+
+      if (!guard.ok) {
+        return guard.reason === "VILLAGE_READ_ONLY"
+          ? ("village_read_only" as const)
+          : ("village_inactive" as const);
       }
 
       // B05 hardening: village-then-house lock ordering. Lock the house row
@@ -118,6 +126,9 @@ export async function updateHouseNumberAction(
     return { success: false, formError: "generic" };
   }
 
+  if (outcome === "village_read_only") {
+    return { success: false, formError: "generic", code: VILLAGE_READ_ONLY_CODE };
+  }
   if (outcome === "village_inactive") return redirectForbidden();
   if (outcome === "not_found") return notFound();
   // Another rename won the race, or the row changed under us; ask the user

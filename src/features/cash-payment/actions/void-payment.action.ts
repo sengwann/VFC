@@ -11,12 +11,20 @@ import { prisma } from "../../../lib/prisma";
 import { createAuditLog, AuditEntityType } from "../../../lib/audit";
 import { requireActiveCollector } from "../../../lib/authz";
 import { validateVoidReason } from "../lib/cash-payment-validators";
+import { guardVillageWrite } from "../../../lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  VILLAGE_READ_ONLY_MESSAGE,
+  type VillageReadOnlyCode,
+} from "../../village-deactivation/lib/village-deactivation-rules";
 
 export type VoidPaymentActionResult =
   | { success: true }
   | {
       success: false;
       error?: string;
+      /** Set when the village is read-only (approved deactivation). */
+      code?: VillageReadOnlyCode;
       fieldErrors?: Record<string, string>;
     };
 
@@ -75,6 +83,12 @@ export async function voidPaymentAction(
     await withSerializableRetry(() =>
       prisma.$transaction(
         async (tx) => {
+          const guard = await guardVillageWrite(tx, villageId);
+
+          if (!guard.ok) {
+            throw new Error(guard.reason);
+          }
+
           const currentPayment = await tx.payment.findUnique({
             where: { id: paymentId },
             select: { id: true, status: true, villageId: true },
@@ -127,6 +141,13 @@ export async function voidPaymentAction(
 
     return { success: true };
   } catch (error) {
+    if (error instanceof Error && error.message === VILLAGE_READ_ONLY_CODE) {
+      return {
+        success: false,
+        error: VILLAGE_READ_ONLY_MESSAGE,
+        code: VILLAGE_READ_ONLY_CODE,
+      };
+    }
     if (
       error instanceof Error &&
       error.message === "PAYMENT_CANNOT_BE_VOIDED"

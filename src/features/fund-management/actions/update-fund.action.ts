@@ -5,6 +5,12 @@ import { prisma } from "../../../lib/prisma";
 import { requireChief } from "../../../lib/authz";
 import { validateFundInput, type FundField } from "../lib/fund-validators";
 import { AuditEntityType, createAuditLog } from "../../../lib/audit";
+import { guardVillageWrite } from "../../../lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  VILLAGE_READ_ONLY_MESSAGE,
+  type VillageReadOnlyCode,
+} from "../../village-deactivation/lib/village-deactivation-rules";
 
 export type UpdateFundActionResult =
   | {
@@ -13,6 +19,8 @@ export type UpdateFundActionResult =
   | {
       success: false;
       formError?: string;
+      /** Set when the village is read-only (approved deactivation). */
+      code?: VillageReadOnlyCode;
       fieldErrors?: Partial<Record<FundField, string>>;
     };
 
@@ -50,39 +58,69 @@ export async function updateFundAction(
     validation.data;
 
   try {
-    const updated = await prisma.fund.updateMany({
-      where: {
-        id: fundId,
+    // The guard, the guarded update and its audit entry commit together.
+    const outcome = await prisma.$transaction(async (tx) => {
+      const guard = await guardVillageWrite(tx, villageId);
+
+      if (!guard.ok) {
+        return guard.reason;
+      }
+
+      const updated = await tx.fund.updateMany({
+        where: {
+          id: fundId,
+          villageId,
+          status: FundStatus.DRAFT,
+        },
+        data: {
+          name,
+          description,
+          targetAmount,
+          startDate,
+          endDate,
+        },
+      });
+
+      if (updated.count !== 1) {
+        return "NOT_DRAFT" as const;
+      }
+
+      await createAuditLog(tx, {
+        actionType: AuditActionType.UPDATE,
+        entityType: AuditEntityType.FUND,
+        entityId: fundId,
         villageId,
-        status: FundStatus.DRAFT,
-      },
-      data: {
-        name,
-        description,
-        targetAmount,
-        startDate,
-        endDate,
-      },
+        actorUserId: user.id,
+        metadata: {
+          name,
+          targetAmount,
+        },
+      });
+
+      return "UPDATED" as const;
     });
 
-    if (updated.count !== 1) {
+    if (outcome === "VILLAGE_READ_ONLY") {
+      return {
+        success: false,
+        formError: VILLAGE_READ_ONLY_MESSAGE,
+        code: VILLAGE_READ_ONLY_CODE,
+      };
+    }
+
+    if (outcome === "VILLAGE_INACTIVE") {
+      return {
+        success: false,
+        formError: "Unable to update fund. Please try again.",
+      };
+    }
+
+    if (outcome === "NOT_DRAFT") {
       return {
         success: false,
         formError: "Only draft funds can be edited.",
       };
     }
-
-    await createAuditLog(prisma, {
-      actionType: AuditActionType.UPDATE,
-      entityType: AuditEntityType.FUND,
-      entityId: fundId,
-      villageId,
-      actorUserId: user.id,
-      metadata: {
-        name,
-        targetAmount,
-      },
-    });
 
     return {
       success: true,

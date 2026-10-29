@@ -280,3 +280,54 @@ export function dueReminderOffsetsMs(input: {
 
   return input.offsetsMs.filter((offset) => now >= deadline - offset);
 }
+
+/*
+ * Mutation guard decision. The database part (locking the village row and
+ * looking for an APPROVED request) lives in src/lib/authz/village.ts
+ * (guardVillageWrite); this is only the decision over what it read.
+ */
+
+/** Machine-readable code returned for a write blocked by read-only mode. */
+export const VILLAGE_READ_ONLY_CODE = "VILLAGE_READ_ONLY" as const;
+
+export type VillageReadOnlyCode = typeof VILLAGE_READ_ONLY_CODE;
+
+/** English fallback text. The UI renders its own translated message. */
+export const VILLAGE_READ_ONLY_MESSAGE =
+  "This village is read-only because it is scheduled for deactivation. No changes can be made.";
+
+/** Query-string contract for actions that answer with a redirect. */
+export const VILLAGE_READ_ONLY_ERROR_PARAM = "error";
+
+export type VillageWriteBlockReason = "VILLAGE_INACTIVE" | "VILLAGE_READ_ONLY";
+
+export type VillageWriteEvaluation =
+  | { ok: true }
+  | { ok: false; reason: VillageWriteBlockReason };
+
+/**
+ * A village accepts writes only when it exists, is ACTIVE and has no APPROVED
+ * deactivation request. Lifecycle is checked first so a missing or inactive
+ * village never reports read-only. A PENDING request restricts nothing.
+ */
+export function evaluateVillageWrite(input: {
+  villageStatus: string | null;
+  hasApprovedRequest: boolean;
+}): VillageWriteEvaluation {
+  if (input.villageStatus !== "ACTIVE") {
+    return { ok: false, reason: "VILLAGE_INACTIVE" };
+  }
+
+  if (input.hasApprovedRequest) {
+    return { ok: false, reason: "VILLAGE_READ_ONLY" };
+  }
+
+  return { ok: true };
+}
+
+/** The same page with ?error=VILLAGE_READ_ONLY, for redirect-style actions. */
+export function withReadOnlyError(path: string): string {
+  const separator = path.includes("?") ? "&" : "?";
+
+  return `${path}${separator}${VILLAGE_READ_ONLY_ERROR_PARAM}=${VILLAGE_READ_ONLY_CODE}`;
+}

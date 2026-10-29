@@ -5,7 +5,8 @@ import { AuditActionType, MembershipStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireChief } from "@/lib/authz";
 import { redirectForbidden } from "@/lib/authz/authz.errors";
-import { lockActiveVillage } from "@/lib/authz/village";
+import { guardVillageWrite } from "@/lib/authz/village";
+import { withReadOnlyError } from "@/features/village-deactivation/lib/village-deactivation-rules";
 import { lockHouse } from "@/lib/authz/house";
 import { canDeactivateHouse } from "../lib/house-rules";
 import { AuditEntityType, createAuditLog } from "@/lib/audit";
@@ -14,7 +15,8 @@ import { withSerializableRetry } from "@/lib/db/transaction";
 type DeactivateOutcome =
   | { kind: "found"; houseId: string }
   | { kind: "not_found" }
-  | { kind: "village_inactive" };
+  | { kind: "village_inactive" }
+  | { kind: "village_read_only" };
 
 export async function deactivateHouseAction(houseId: string): Promise<void> {
   const { user, villageId } = await requireChief();
@@ -26,8 +28,12 @@ export async function deactivateHouseAction(houseId: string): Promise<void> {
     outcome = await withSerializableRetry(() =>
       prisma.$transaction(
         async (tx): Promise<DeactivateOutcome> => {
-          if (!(await lockActiveVillage(tx, villageId))) {
-            return { kind: "village_inactive" };
+          const guard = await guardVillageWrite(tx, villageId);
+
+          if (!guard.ok) {
+            return guard.reason === "VILLAGE_READ_ONLY"
+              ? { kind: "village_read_only" }
+              : { kind: "village_inactive" };
           }
 
           // B05 hardening: village-then-house lock ordering. Lock the house
@@ -103,6 +109,10 @@ export async function deactivateHouseAction(houseId: string): Promise<void> {
       return redirect(`/village/houses/${houseId}`);
     }
     throw error;
+  }
+
+  if (outcome.kind === "village_read_only") {
+    return redirect(withReadOnlyError(`/village/houses/${houseId}`));
   }
 
   if (outcome.kind === "village_inactive") {
