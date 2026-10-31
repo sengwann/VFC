@@ -8,13 +8,17 @@ import { prisma } from "../../../lib/prisma";
 import {
   LIFECYCLE_TARGET_STATUS,
   canTransition,
-  type VillageLifecycleAction,
+  isAdminLifecycleAction,
+  type AdminLifecycleAction,
 } from "./village-lifecycle-rules";
 
 export type ChangeVillageStatusOutcome = "ok" | "not_found" | "not_allowed";
 
 /*
- * Shared lifecycle transaction for suspend, reactivate and deactivate. The
+ * Shared lifecycle transaction for the System Admin actions suspend and
+ * reactivate. Deactivation is NOT possible here, by type and at runtime: a
+ * village is deactivated only by the deactivation workflow after an approved
+ * request reaches its deadline. The
  * read, the transition check, the status update and the audit entry commit or
  * roll back together under Serializable isolation. It returns an outcome
  * instead of redirecting, so no redirect() is thrown inside the transaction.
@@ -27,11 +31,17 @@ export type ChangeVillageStatusOutcome = "ok" | "not_found" | "not_allowed";
  */
 export async function changeVillageStatus(params: {
   villageId: string;
-  action: VillageLifecycleAction;
+  action: AdminLifecycleAction;
   actorUserId: string;
   reason: string | null;
 }): Promise<ChangeVillageStatusOutcome> {
   const { villageId, action, actorUserId, reason } = params;
+
+  // Defense in depth: the type already excludes "deactivate", but this also
+  // holds for a caller that bypasses the types.
+  if (!isAdminLifecycleAction(action)) {
+    return "not_allowed";
+  }
 
   return withSerializableRetry(() =>
     prisma.$transaction(

@@ -13,7 +13,7 @@ import {
   LIFECYCLE_ERROR_REASON_TOO_LONG,
   parseLifecycleInput,
 } from "./lifecycle-input";
-import type { VillageLifecycleAction } from "./village-lifecycle-rules";
+import type { AdminLifecycleAction } from "./village-lifecycle-rules";
 
 const VILLAGES_LIST_PATH = "/admin/villages";
 
@@ -22,7 +22,7 @@ function getVillageDetailPath(villageId: string): string {
 }
 
 /*
- * Shared body of the three lifecycle server actions. The action files stay thin
+ * Shared body of the two admin lifecycle server actions (suspend, reactivate). The action files stay thin
  * and call requireSystemAdmin() themselves; this runs after that check.
  * A missing village goes to the list, anything else (including a transition
  * that is not allowed) goes to the detail page. A serialization conflict that
@@ -30,7 +30,7 @@ function getVillageDetailPath(villageId: string): string {
  * param; any other error is rethrown.
  */
 export async function runVillageLifecycleAction(params: {
-  action: VillageLifecycleAction;
+  action: AdminLifecycleAction;
   formData: FormData;
   actorUserId: string;
 }): Promise<never> {

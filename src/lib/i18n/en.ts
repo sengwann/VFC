@@ -374,14 +374,6 @@ export const en = {
     "Pause this village. You can reactivate it later.",
   "adminVillages.reactivate.button": "Reactivate village",
   "adminVillages.reactivate.hint": "Return this village to active status.",
-  "adminVillages.deactivate.title": "Deactivate village",
-  "adminVillages.deactivate.hint":
-    "Deactivation is final for MVP. The village record and historical data are preserved, but village users will lose access.",
-  "adminVillages.deactivate.button": "Deactivate village",
-  "adminVillages.deactivate.confirmTitle": "Deactivate this village?",
-  "adminVillages.deactivate.confirmBody":
-    "{name} ({code}) will be deactivated. This cannot be undone. Village users will lose access; records and history are kept. The village code and users' emails and phone numbers stay reserved and cannot be reused.",
-  "adminVillages.deactivate.confirm": "Yes, deactivate",
 
   // Audit logs (Feature P)
   "audit.title": "Audit log",

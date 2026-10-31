@@ -81,7 +81,7 @@ describe("changeVillageStatus", () => {
   it("updates only Village.status, conditioned on the status read, and audits it", async () => {
     const outcome = await changeVillageStatus({
       villageId: "v1",
-      action: "deactivate",
+      action: "suspend",
       actorUserId: "admin",
       reason: "closed",
     });
@@ -89,7 +89,7 @@ describe("changeVillageStatus", () => {
     expect(outcome).toBe("ok");
     expect(mocks.tx.village.updateMany).toHaveBeenCalledWith({
       where: { id: "v1", status: "ACTIVE" },
-      data: { status: "DEACTIVATED" },
+      data: { status: "SUSPENDED" },
     });
     expect(mocks.createAuditLog).toHaveBeenCalledTimes(1);
 
@@ -107,16 +107,36 @@ describe("changeVillageStatus", () => {
         villageCode: "DEV101",
         name: "Test Village",
         previousStatus: "ACTIVE",
-        newStatus: "DEACTIVATED",
+        newStatus: "SUSPENDED",
         reason: "closed",
       },
     });
   });
 
+  it("never deactivates directly, even for a caller that bypasses the types", async () => {
+    for (const status of ["ACTIVE", "SUSPENDED"]) {
+      mocks.tx.village.findUnique.mockResolvedValue({ ...VILLAGE, status });
+
+      const outcome = await changeVillageStatus({
+        villageId: "v1",
+        // Not allowed by the type; this simulates a bypass.
+        action: "deactivate" as unknown as "suspend",
+        actorUserId: "admin",
+        reason: null,
+      });
+
+      expect(outcome).toBe("not_allowed");
+    }
+
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.tx.village.updateMany).not.toHaveBeenCalled();
+    expect(mocks.createAuditLog).not.toHaveBeenCalled();
+  });
+
   it("does not cascade: users are never touched", async () => {
     await changeVillageStatus({
       villageId: "v1",
-      action: "deactivate",
+      action: "suspend",
       actorUserId: "admin",
       reason: null,
     });

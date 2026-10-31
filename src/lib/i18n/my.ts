@@ -395,14 +395,6 @@ export const my: Record<TranslationKey, string> = {
   "adminVillages.reactivate.button": "ကျေးရွာ ပြန်ဖွင့်ရန်",
   "adminVillages.reactivate.hint":
     "ဤကျေးရွာကို လက်ရှိ အသုံးပြုနေသော အခြေအနေသို့ ပြန်ထားပါ။",
-  "adminVillages.deactivate.title": "ကျေးရွာ ပိတ်သိမ်းရန်",
-  "adminVillages.deactivate.hint":
-    "ပိတ်သိမ်းခြင်းသည် MVP တွင် နောက်ပြန်လှည့်၍ မရပါ။ ကျေးရွာ မှတ်တမ်းနှင့် သမိုင်းကြောင်း ဒေတာများကို သိမ်းထားသော်လည်း ကျေးရွာအသုံးပြုသူများ ဝင်ရောက်ခွင့် ဆုံးရှုံးမည်။",
-  "adminVillages.deactivate.button": "ကျေးရွာ ပိတ်သိမ်းရန်",
-  "adminVillages.deactivate.confirmTitle": "ဤကျေးရွာကို ပိတ်သိမ်းမလား။",
-  "adminVillages.deactivate.confirmBody":
-    "{name} ({code}) ကို ပိတ်သိမ်းပါမည်။ ဤလုပ်ဆောင်ချက်ကို နောက်ပြန်လှည့်၍ မရပါ။ ကျေးရွာအသုံးပြုသူများ ဝင်ရောက်ခွင့် ဆုံးရှုံးမည်ဖြစ်ပြီး မှတ်တမ်းများကို ဆက်လက် သိမ်းထားမည်။ ကျေးရွာကုဒ်နှင့် အသုံးပြုသူများ၏ အီးမေးလ်၊ ဖုန်းနံပါတ်များကို ဆက်လက် သီးသန့်ထားမည်ဖြစ်သောကြောင့် ပြန်လည် အသုံးပြု၍ မရပါ။",
-  "adminVillages.deactivate.confirm": "ဟုတ်ကဲ့၊ ပိတ်သိမ်းမည်",
 
   // Audit logs (Feature P)
   "audit.title": "စာရင်းစစ် မှတ်တမ်း",

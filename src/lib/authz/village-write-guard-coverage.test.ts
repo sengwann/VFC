@@ -60,11 +60,9 @@ const EXEMPT: Record<string, string> = {
   "src/features/village-management/actions/create-village.action.ts":
     "Platform action that creates a new village; there is no village to guard yet.",
   "src/features/village-management/actions/suspend-village.action.ts":
-    "System Admin lifecycle action; blocked during the countdown in Phase 4.",
+    "System Admin lifecycle action; blocked during the countdown (Phase 4).",
   "src/features/village-management/actions/reactivate-village.action.ts":
     "System Admin lifecycle action.",
-  "src/features/village-management/actions/deactivate-village.action.ts":
-    "Direct deactivation is removed in Phase 3.",
 };
 
 const ROOT = path.resolve(__dirname, "../../..");

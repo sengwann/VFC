@@ -151,9 +151,7 @@ export default async function VillageDetailPage({
             <VillageLifecycleActions
               language={language}
               status={village.status}
-              villageCode={village.villageCode}
               villageId={village.id}
-              villageName={village.name}
             />
           </CardContent>
         </Card>
