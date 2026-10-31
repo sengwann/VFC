@@ -57,6 +57,14 @@ const EXEMPT: Record<string, string> = {
     "Read-only lookup.",
   "src/features/fund-management/actions/search-payment-status.action.ts":
     "Read-only search.",
+  "src/features/village-deactivation/actions/submit-deactivation-request.action.ts":
+    "Workflow transition: a pending request restricts nothing, and the service takes the village lock itself.",
+  "src/features/village-deactivation/actions/cancel-deactivation-request.action.ts":
+    "Must work while the village is read-only (it is how read-only ends); the service takes the village lock and enforces the deadline.",
+  "src/features/village-deactivation/actions/approve-deactivation-request.action.ts":
+    "System Admin workflow transition; it is what starts read-only, and it takes the village lock itself.",
+  "src/features/village-deactivation/actions/reject-deactivation-request.action.ts":
+    "System Admin workflow transition; the village stays fully operational.",
   "src/features/village-management/actions/create-village.action.ts":
     "Platform action that creates a new village; there is no village to guard yet.",
   "src/features/village-management/actions/suspend-village.action.ts":

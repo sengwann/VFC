@@ -75,6 +75,23 @@ Audit: every successful transition writes a request entry (`CREATE` / `APPROVE` 
 
 Not in this phase: the server actions (Phase 5), notifications (Phase 6), the worker, its failure bookkeeping (`processingAttempts`, `lastProcessingError`) and due-request lookup (Phase 7), and the UI and audit labels (Phase 8).
 
+## Phase 5: server actions
+
+Four actions in `src/features/village-deactivation/actions/`, each thin: authenticate, parse, call the service, hand the result to `runDeactivationAction`.
+
+| Action | Auth | Input | Service |
+| --- | --- | --- | --- |
+| `submitDeactivationRequestAction` | `requireChief()` | `reason` (village from the session) | `submitDeactivationRequest` |
+| `cancelDeactivationRequestAction` | `requireChief()` | `requestId`, `reason`, `confirm` | `cancelDeactivationRequest` |
+| `approveDeactivationRequestAction` | `requireSystemAdmin()` | `requestId` | `approveDeactivationRequest` |
+| `rejectDeactivationRequestAction` | `requireSystemAdmin()` | `requestId`, `reason` | `rejectDeactivationRequest` (cooldown from configuration) |
+
+Admins cannot submit or cancel and Chiefs cannot approve or reject: the role check is in the action and again in the transition (the actor is re-read from the database).
+
+Answers follow the lifecycle convention (redirect with a code in the query string): `?notice=submitted|approved|rejected|cancelled` or `?error=<code>`, with `&until=<ISO time>` for `cooldown_active`. Codes: `invalid_request`, `reason_required`, `reason_too_long`, `confirmation_required`, `village_not_active`, `unresolved_request_exists`, `cooldown_active`, `not_pending`, `not_approved`, `deadline_reached`, `busy`. A non-authorized actor gets the existing forbidden redirect. The code to text mapping is Phase 8.
+
+Landing pages are `/village/deactivation` (Chief) and `/admin/deactivation-requests` (System Admin). They do not exist until Phase 8, so until then the redirect ends on a 404. No UI calls these actions yet.
+
 ## Q5: suspension during the countdown (decided)
 
 Conflict: a SUSPENDED village blocks Chief access, so suspending during an APPROVED request would leave the Chief unable to cancel before the deadline. Rules 6.6 and 8.5 keep suspension and cancellation separate.
