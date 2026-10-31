@@ -8,11 +8,12 @@ import { describe, expect, it } from "vitest";
  * deactivation workflow (approved request, 24h countdown, automatic
  * completion). Adding a new writer must be reviewed and added on purpose.
  *
- * Phase 4 adds the workflow completion service to this list.
  */
 const STATUS_WRITERS = new Set([
   // Admin suspend / reactivate (deactivate is refused there).
   "src/features/village-management/lib/change-village-status.ts",
+  // Automatic completion of an approved request, after its deadline.
+  "src/features/village-deactivation/lib/deactivation-transitions.ts",
 ]);
 
 const WRITE_PATTERNS = [

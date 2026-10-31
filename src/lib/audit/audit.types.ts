@@ -9,6 +9,7 @@ export const AuditEntityType = {
   PAYMENT: "PAYMENT",
   RECEIPT: "RECEIPT",
   SESSION: "SESSION",
+  DEACTIVATION_REQUEST: "DEACTIVATION_REQUEST",
 } as const;
 
 export type AuditEntityType =
@@ -79,4 +80,31 @@ export interface ReceiptAuditMetadata {
 export interface SessionAuditMetadata {
   userRole?: string;
   villageId?: string | null;
+}
+
+/**
+ * Village deactivation workflow entries. Dates are ISO-8601 UTC strings.
+ * `outcome` is "SUCCESS" for a completed transition and "BLOCKED" for a
+ * refused one that is worth recording (a cooldown rejection, a non-Chief or
+ * non-Admin attempt, a cancellation after the deadline).
+ */
+export interface DeactivationAuditMetadata {
+  requestId?: string;
+  requesterUserId?: string;
+  reason?: string;
+  outcome?: "SUCCESS" | "BLOCKED";
+  blockReason?: string;
+  approvedAt?: string;
+  scheduledDeactivationAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  cooldownEndsAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  completedAt?: string;
+  completedBy?: string;
+  /** On VILLAGE entries: read-only mode switched on (true) or off (false). */
+  readOnly?: boolean;
+  previousStatus?: string;
+  newStatus?: string;
 }

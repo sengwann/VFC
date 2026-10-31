@@ -351,6 +351,8 @@ export const en = {
     "Password is too long. It can be at most 72 bytes, and each Burmese character uses 3 bytes.",
   "adminVillages.err.retry":
     "The system is busy. Please wait a moment and try again.",
+  "adminVillages.err.deactivationCountdown":
+    "This village cannot be suspended while a deactivation request is approved. Only the Chief can cancel it before the deadline.",
   "adminVillages.err.reasonTooLong":
     "The reason must be 200 characters or fewer. Shorten it and try again.",
   "adminVillages.reason.label": "Reason (optional)",

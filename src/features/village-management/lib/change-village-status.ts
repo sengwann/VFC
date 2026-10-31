@@ -12,7 +12,12 @@ import {
   type AdminLifecycleAction,
 } from "./village-lifecycle-rules";
 
-export type ChangeVillageStatusOutcome = "ok" | "not_found" | "not_allowed";
+export type ChangeVillageStatusOutcome =
+  | "ok"
+  | "not_found"
+  | "not_allowed"
+  /** Suspend refused: the village has an approved deactivation request. */
+  | "blocked_by_deactivation";
 
 /*
  * Shared lifecycle transaction for the System Admin actions suspend and
@@ -64,6 +69,22 @@ export async function changeVillageStatus(params: {
 
         if (!canTransition(action, village.status)) {
           return "not_allowed";
+        }
+
+        // Q5: a village in its deactivation countdown cannot be suspended, so
+        // the Chief can always cancel before the deadline. This is checked
+        // BEFORE any write. A concurrent approval is safe without a lock here:
+        // it updates this same village row, so under Serializable one of the
+        // two transactions fails with 40001 and is retried into the other's
+        // result (an approval on a SUSPENDED village is refused).
+        if (action === "suspend") {
+          const approved = await tx.villageDeactivationRequest.count({
+            where: { villageId: village.id, status: "APPROVED" },
+          });
+
+          if (approved > 0) {
+            return "blocked_by_deactivation";
+          }
         }
 
         const newStatus = LIFECYCLE_TARGET_STATUS[action];

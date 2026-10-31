@@ -9,6 +9,7 @@ import {
 } from "./change-village-status";
 import {
   LIFECYCLE_ERROR_BUSY,
+  LIFECYCLE_ERROR_DEACTIVATION_COUNTDOWN,
   LIFECYCLE_ERROR_PARAM,
   LIFECYCLE_ERROR_REASON_TOO_LONG,
   parseLifecycleInput,
@@ -66,6 +67,12 @@ export async function runVillageLifecycleAction(params: {
   if (outcome === "busy") {
     redirect(
       `${getVillageDetailPath(input.villageId)}?${LIFECYCLE_ERROR_PARAM}=${LIFECYCLE_ERROR_BUSY}`,
+    );
+  }
+
+  if (outcome === "blocked_by_deactivation") {
+    redirect(
+      `${getVillageDetailPath(input.villageId)}?${LIFECYCLE_ERROR_PARAM}=${LIFECYCLE_ERROR_DEACTIVATION_COUNTDOWN}`,
     );
   }
 

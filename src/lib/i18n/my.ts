@@ -371,6 +371,8 @@ export const my: Record<TranslationKey, string> = {
   "adminVillages.err.passwordBytes":
     "စကားဝှက် ရှည်လွန်းသည်။ 72 ဘိုက်ထက် မပိုရပါ။ မြန်မာအက္ခရာ တစ်လုံးလျှင် 3 ဘိုက် ယူသည်။",
   "adminVillages.err.retry": "စနစ် အလုပ်များနေသည်။ ခဏစောင့်ပြီး ထပ်ကြိုးစားပါ။",
+  "adminVillages.err.deactivationCountdown":
+    "ပိတ်သိမ်းရန် တောင်းဆိုမှု အတည်ပြုထားစဉ် ဤကျေးရွာကို ခေတ္တရပ်ဆိုင်း၍ မရပါ။ သတ်မှတ်ချိန်မတိုင်မီ ကျေးရွာအကြီးအကဲသာ ပယ်ဖျက်နိုင်သည်။",
   "adminVillages.err.reasonTooLong":
     "အကြောင်းပြချက်သည် စာလုံး 200 ထက် မပိုရပါ။ တိုအောင်ပြင်ပြီး ထပ်ကြိုးစားပါ။",
   "adminVillages.reason.label": "အကြောင်းပြချက် (မဖြည့်လည်းရသည်)",

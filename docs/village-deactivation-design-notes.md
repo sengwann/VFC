@@ -55,13 +55,33 @@ Behavior changes to know about:
 
 Exempt server actions (listed with reasons in `village-write-guard-coverage.test.ts`): login, logout, change password, language settings, village-code lookup, payment-status search, create village, and the three System Admin lifecycle actions (suspend is blocked during the countdown in Phase 4; direct deactivation is removed in Phase 3).
 
+## Phase 4: workflow services
+
+`deactivation-transitions.ts` holds the five transitions as functions that run inside a caller-supplied transaction (so they unit test with a fake client and the worker reuses them). `village-deactivation-service.ts` wraps each in a Serializable transaction with `withSerializableRetry`.
+
+| Transition | Who | From to | Notes |
+| --- | --- | --- | --- |
+| submit | the Chief of that village (re-read from the database) | new PENDING | village must be ACTIVE; one unresolved request; cooldown after REJECTED |
+| approve | System Admin | PENDING to APPROVED | village must be ACTIVE; stores approver, approvedAt and `scheduledDeactivationAt = approvedAt + 24h` in one write; does not change `Village.status` |
+| reject | System Admin | PENDING to REJECTED | reason required; stores decision-maker, time, reason, `cooldownEndsAt` |
+| cancel | the Chief of that village | APPROVED to CANCELLED | reason required; only strictly before the deadline (the deadline is also in the write's WHERE); never touches `Village.status` |
+| complete | system (worker) | APPROVED to COMPLETED | only at or after the stored deadline; sets the village DEACTIVATED, completes the request and audits, in one transaction; idempotent |
+
+Concurrency: approve, cancel and complete start with `UPDATE "Village" SET "updatedAt" = ...` (row lock plus a row-version change), so a Serializable transaction that started from an older snapshot fails with 40001 and is retried. Every request write is conditional on the status that was read. The clock is `clock_timestamp()` from the database. Checked on PostgreSQL 16 with psql: suspend against a concurrent approval, approval against a concurrent suspend, and cancel against complete all end with exactly one winner and a retried loser.
+
+Q5 is implemented in `changeVillageStatus`: `suspend` returns `blocked_by_deactivation` when the village has an APPROVED request, before any write; the admin village page shows a message. Reactivate is unaffected.
+
+Audit: every successful transition writes a request entry (`CREATE` / `APPROVE` / `REJECT` / `CANCEL` / `COMPLETE`, entity `DEACTIVATION_REQUEST`, `outcome: "SUCCESS"`). Approve and cancel also write a village entry with `readOnly: true` / `false`; completion also writes the village `STATUS_CHANGE`. Refused transitions are recorded only where they matter: a cooldown rejection, a non-Chief or non-Admin attempt, and a cancellation at or after the deadline (`outcome: "BLOCKED"`). Routine losers of a race (already approved, not pending) are not audited.
+
+Not in this phase: the server actions (Phase 5), notifications (Phase 6), the worker, its failure bookkeeping (`processingAttempts`, `lastProcessingError`) and due-request lookup (Phase 7), and the UI and audit labels (Phase 8).
+
 ## Q5: suspension during the countdown (decided)
 
 Conflict: a SUSPENDED village blocks Chief access, so suspending during an APPROVED request would leave the Chief unable to cancel before the deadline. Rules 6.6 and 8.5 keep suspension and cancellation separate.
 
 Decision: suspension is blocked while the village has an APPROVED request. Chief cancellation therefore always stays possible, and the rules about suspension are not otherwise changed.
 
-Implementation (Phase 4, not done yet): in `changeVillageStatus`, after the village-row UPDATE, refuse `suspend` with a new outcome (for example `BLOCKED_BY_DEACTIVATION`) when an APPROVED request exists. `reactivate` is unaffected. Approval already requires an ACTIVE village, so an approved request can never sit on a suspended village. Completion still accepts a SUSPENDED village defensively. The guard check runs under the same Serializable transaction and village-row lock as approval, so approve and suspend cannot both commit.
+Implementation (done in Phase 4): in `changeVillageStatus`, after the village-row UPDATE, refuse `suspend` with a new outcome (for example `BLOCKED_BY_DEACTIVATION`) when an APPROVED request exists. `reactivate` is unaffected. Approval already requires an ACTIVE village, so an approved request can never sit on a suspended village. Completion still accepts a SUSPENDED village defensively. The guard check runs under the same Serializable transaction and village-row lock as approval, so approve and suspend cannot both commit.
 
 ## Worker (Phase 7)
 

@@ -8,6 +8,7 @@ import { VillageLifecycleActions } from "@/features/village-management/component
 import { VillageStatusBadge } from "@/features/village-management/components/village-status-badge";
 import {
   LIFECYCLE_ERROR_BUSY,
+  LIFECYCLE_ERROR_DEACTIVATION_COUNTDOWN,
   LIFECYCLE_ERROR_PARAM,
   LIFECYCLE_ERROR_REASON_TOO_LONG,
 } from "@/features/village-management/lib/lifecycle-input";
@@ -51,6 +52,8 @@ export default async function VillageDetailPage({
   const errorParam = firstValue(query[LIFECYCLE_ERROR_PARAM]);
   const showReasonTooLong = errorParam === LIFECYCLE_ERROR_REASON_TOO_LONG;
   const showBusy = errorParam === LIFECYCLE_ERROR_BUSY;
+  const showCountdown =
+    errorParam === LIFECYCLE_ERROR_DEACTIVATION_COUNTDOWN;
 
   const statusLabels: Record<typeof village.status, TranslationKey> = {
     ACTIVE: "adminDashboard.status.active",
@@ -115,6 +118,10 @@ export default async function VillageDetailPage({
 
       {showBusy ? (
         <Alert tone="danger">{t("adminVillages.err.retry")}</Alert>
+      ) : null}
+
+      {showCountdown ? (
+        <Alert tone="danger">{t("adminVillages.err.deactivationCountdown")}</Alert>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
