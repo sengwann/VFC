@@ -34,10 +34,13 @@ function listFiles(directory: string): string[] {
   });
 }
 
-const files = listFiles(path.join(ROOT, "src")).map((file) => ({
-  path: path.relative(ROOT, file).split(path.sep).join("/"),
-  text: readFileSync(file, "utf8"),
-}));
+// Test support code is not production code and never runs against real data.
+const files = listFiles(path.join(ROOT, "src"))
+  .filter((file) => !file.includes(`${path.sep}test-support${path.sep}`))
+  .map((file) => ({
+    path: path.relative(ROOT, file).split(path.sep).join("/"),
+    text: readFileSync(file, "utf8"),
+  }));
 
 describe("direct village deactivation does not exist", () => {
   it("has no deactivate server action or confirmation dialog", () => {

@@ -149,11 +149,16 @@ describe("village mutation guard coverage", () => {
     expect(routeLevel).toEqual([]);
   });
 
-  it("only the guard itself locks the village row FOR SHARE", () => {
+  it("only the guard and the submit check lock the village row FOR SHARE", () => {
     const lockers = files
       .filter((file) => /FROM "Village"[\s\S]{0,120}FOR SHARE/.test(file.text))
       .map((file) => file.path);
 
-    expect(lockers).toEqual(["src/lib/authz/village.ts"]);
+    // The submit transition takes the same shared lock to read the village
+    // status; it writes no village data, so it is not a mutation guard.
+    expect(lockers).toEqual([
+      "src/features/village-deactivation/lib/deactivation-transitions.ts",
+      "src/lib/authz/village.ts",
+    ]);
   });
 });
