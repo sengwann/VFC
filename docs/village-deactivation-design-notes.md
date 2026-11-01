@@ -149,7 +149,7 @@ How it stays safe:
 - **Independent of sessions.** Notifications are addressed to user ids, so users see them whenever they next sign in.
 - Read helpers (`listNotificationsForUser`, `countUnreadNotifications`, `markNotificationsRead`) are scoped by `userId` in the query. The mark-as-read action and UI are Phase 8.
 
-Known limit: a Chief or System Admin added after an event does not get notifications for earlier events only if the sync is not re-run; the next sync would create them, which is harmless.
+Known behavior: because the plan is derived from current recipients, a System Admin or Chief added later receives the earlier events' notifications on the next sync. This is harmless and arguably useful.
 
 ## Known side effects of Phase 1
 
