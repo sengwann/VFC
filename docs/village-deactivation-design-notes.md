@@ -155,3 +155,27 @@ Known behavior: because the plan is derived from current recipients, a System Ad
 
 - The audit filter dropdown lists enum values from Prisma, so `CANCEL` and `COMPLETE` appear there as raw names until Phase 8 adds labels (same as the existing `LOGIN_THROTTLED`).
 - The `DEACTIVATION_REQUEST` audit entity type and its metadata type are deferred to Phase 4. Adding the entity now would also add an unlabeled entry to the entity filter.
+
+## Worker (Phase 7)
+
+`scripts/deactivation-worker.ts`, a plain Node process (no dependency on the web host or any user session).
+
+```
+npm run worker:deactivation        # loop, a pass every DEACTIVATION_WORKER_INTERVAL_SECONDS (default 60)
+npm run worker:deactivation:once   # one pass then exit; code 0 clean, 1 if anything failed or was blocked
+```
+
+Needs `DATABASE_URL` (read from `.env` if present). Run it under whatever your host provides: systemd, Docker, a Kubernetes Deployment (loop) or CronJob (`--once` every minute), PM2, a Replit deployment, or plain cron. It handles SIGINT/SIGTERM by finishing the current pass. Configuration errors stop it at start. A pass that fails (for example the database is down) is logged and the loop continues.
+
+`--conditions=react-server` in the npm scripts: shared code imports `server-only`, which throws outside a Next.js server build unless that export condition is set. It is only a marker, so this is safe. It could not be run in the authoring environment (no `node_modules`), so confirm with `npm run worker:deactivation:once` first.
+
+What a pass does:
+
+1. **Claim.** `UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)` takes APPROVED requests whose stored deadline has passed (database clock), counts an attempt in `processingAttempts`, and stamps `lastProcessingAt`. A claimed request is not claimed again for 5 minutes (`CLAIM_LEASE_SECONDS`), so concurrent workers do not take the same request. Validated on PostgreSQL 16: only due, unclaimed rows are returned; a row locked by another session is skipped without waiting.
+2. **Complete.** Each claimed request goes through `completeDeactivationRequest` (the Phase 4 transition: village DEACTIVATED, request COMPLETED, audits, one Serializable transaction, notification after commit). It is idempotent: a request cancelled or completed in the meantime returns `NOT_APPROVED` and nothing changes. A failure on one request does not stop the rest.
+3. **Failure bookkeeping.** An exception stores a truncated message in `lastProcessingError` and releases the claim so the next pass retries. A non-completable state that is not simply "already resolved" (for example the village was already DEACTIVATED) is stored as `blocked: <reason>` and keeps the lease, so it is retried every 5 minutes instead of every pass. Both are visible in the request row.
+4. **Notification reconcile.** For PENDING and APPROVED requests and ones changed within 48 hours, it runs the idempotent notification sync (Phase 6). That is what sends the T-12h and T-1h reminders, and what repairs a delivery that failed earlier. A problem here never prevents completion: completion runs first.
+
+Timing: with the default 60 second interval a village is deactivated up to about a minute after its deadline, never before it. Lower `DEACTIVATION_WORKER_INTERVAL_SECONDS` for tighter timing. Cancellation stays strictly before the deadline regardless of worker lag, because the transition compares against the stored deadline, not against whether the worker has run.
+
+Not covered by the worker: it does not alert when it is not running. Overdue APPROVED requests (deadline passed, still APPROVED) are the signal; the Phase 8 admin page lists them.
