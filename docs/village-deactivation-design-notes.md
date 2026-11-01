@@ -128,6 +128,29 @@ npm run test:integration
 
 The helper refuses to run when `TEST_DATABASE_URL` is unset, is the same database as `DATABASE_URL`, has no "test" word in the name, is on a non-local host (unless `TEST_DATABASE_ALLOW_REMOTE=1`), or when `NODE_ENV=production`. It never truncates or resets. Tests use unique ids and delete only their own rows. Without `TEST_DATABASE_URL` the integration tests are skipped, so `npm test` still works.
 
+## Notifications (Phase 6)
+
+In-app only, stored in the `Notification` table. Text is not stored: `type` plus `params` (village name/code, reason, rejection reason, cooldown end, deadline, reminder offset) let the page render translated text when it reads them (Phase 8).
+
+| Event | Recipients |
+| --- | --- |
+| Request created | all System Admins |
+| Approved | the village's active Chief(s) |
+| Rejected | the Chief(s), with the reason and cooldown end |
+| Cancelled | all System Admins |
+| Completed (automatic) | System Admins only (village users are already blocked) |
+| Reminder, T-12h and T-1h (`DEACTIVATION_REMINDER_HOURS`) | Chief(s) and System Admins, only while APPROVED and before the deadline |
+
+How it stays safe:
+
+- **Derived, not event-driven.** `planDeactivationNotifications` (pure) computes what should exist from the stored request state; `syncDeactivationNotifications` inserts what is missing. Every notification has a unique `dedupeKey` (`deact:<requestId>:<event>:<userId>`), and the insert skips duplicates, so repeating delivery (retry, double submit, the worker's reconcile pass) never duplicates anything. A reminder missed while the worker was down is still sent until the deadline, never after.
+- **Post-commit and best effort.** The service wrappers call delivery after the transition's transaction commits, outside it. `deliverDeactivationNotifications` catches everything: a failure is logged, recorded as an audit entry (`notificationDelivery: "FAILED"`, itself best effort), and never changes, delays or rolls back the workflow. Delivery only inserts `Notification` rows; it never writes village or request state.
+- **Retry.** A failed delivery is repaired by running the same sync again. The Phase 7 worker does this for every unresolved and recently resolved request.
+- **Independent of sessions.** Notifications are addressed to user ids, so users see them whenever they next sign in.
+- Read helpers (`listNotificationsForUser`, `countUnreadNotifications`, `markNotificationsRead`) are scoped by `userId` in the query. The mark-as-read action and UI are Phase 8.
+
+Known limit: a Chief or System Admin added after an event does not get notifications for earlier events only if the sync is not re-run; the next sync would create them, which is harmless.
+
 ## Known side effects of Phase 1
 
 - The audit filter dropdown lists enum values from Prisma, so `CANCEL` and `COMPLETE` appear there as raw names until Phase 8 adds labels (same as the existing `LOGIN_THROTTLED`).

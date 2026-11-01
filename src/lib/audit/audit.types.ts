@@ -103,6 +103,10 @@ export interface DeactivationAuditMetadata {
   cancellationReason?: string;
   completedAt?: string;
   completedBy?: string;
+  /** Set when an in-app notification could not be stored. The workflow was not affected. */
+  notificationDelivery?: "FAILED";
+  notificationEvent?: string;
+  error?: string;
   /** On VILLAGE entries: read-only mode switched on (true) or off (false). */
   readOnly?: boolean;
   previousStatus?: string;
