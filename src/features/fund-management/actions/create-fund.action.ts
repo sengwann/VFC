@@ -50,7 +50,12 @@ export async function createFundAction(
       const guard = await guardVillageWrite(tx, villageId);
 
       if (!guard.ok) {
-        return { kind: guard.reason } as const;
+        // Two literal results (not `{ kind: guard.reason }`), so the outcome
+        // stays a discriminated union and `fundId` is only reachable once
+        // `kind` is "created".
+        return guard.reason === "VILLAGE_READ_ONLY"
+          ? ({ kind: "VILLAGE_READ_ONLY" } as const)
+          : ({ kind: "VILLAGE_INACTIVE" } as const);
       }
 
       // numberOfHouse = total ACTIVE houses in this village (server-side source of truth)
