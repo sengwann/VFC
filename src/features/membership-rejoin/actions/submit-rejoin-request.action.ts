@@ -5,6 +5,11 @@ import { AuditActionType, MembershipStatus, Prisma } from "@prisma/client";
 import { withSerializableRetry } from "../../../lib/db/transaction";
 import { prisma } from "../../../lib/prisma";
 import { lockHouse } from "../../../lib/authz/house";
+import { guardVillageWrite } from "../../../lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  withReadOnlyError,
+} from "../../village-deactivation/lib/village-deactivation-rules";
 import { requireRejoinContext } from "../lib/rejoin-access";
 import {
   getFormDataString,
@@ -47,6 +52,13 @@ export async function submitRejoinRequestAction(
     await withSerializableRetry(() =>
       prisma.$transaction(
         async (tx) => {
+          // Village first, then house (the order every other flow uses).
+          const guard = await guardVillageWrite(tx, villageId);
+
+          if (!guard.ok) {
+            throw new Error(guard.reason);
+          }
+
           const currentUser = await tx.user.findUnique({
             where: {
               id: user.id,
@@ -69,8 +81,9 @@ export async function submitRejoinRequestAction(
           // row's isActive as authoritative for the write below. This
           // serializes the PENDING membership being created here against
           // concurrent house deactivation. Lock-ordering note: this flow
-          // does not take the village row lock; tenancy is enforced by
-          // requireRejoinContext plus the villageId checks, unchanged.
+          // takes the village guard above first, then this house lock;
+          // tenancy is enforced by requireRejoinContext plus the villageId
+          // checks, unchanged.
           const lockedHouse = await lockHouse(tx, house.id);
 
           if (!lockedHouse || !lockedHouse.isActive) {
@@ -124,7 +137,11 @@ export async function submitRejoinRequestAction(
         },
       ),
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === VILLAGE_READ_ONLY_CODE) {
+      redirect(withReadOnlyError("/rejoin"));
+    }
+
     redirect("/rejoin");
   }
 

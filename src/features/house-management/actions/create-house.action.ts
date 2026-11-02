@@ -4,7 +4,8 @@ import { AuditActionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireChief } from "@/lib/authz";
 import { redirectForbidden } from "@/lib/authz/authz.errors";
-import { lockActiveVillage } from "@/lib/authz/village";
+import { guardVillageWrite } from "@/lib/authz/village";
+import { VILLAGE_READ_ONLY_CODE } from "@/features/village-deactivation/lib/village-deactivation-rules";
 import { validateHouseNumber, type HouseField } from "../lib/house-validators";
 import type { HouseErrorCode } from "../lib/house-error-text";
 import { AuditEntityType, createAuditLog } from "@/lib/audit";
@@ -15,6 +16,8 @@ export type CreateHouseActionResult =
       success: false;
       /** "generic" means: show the translated generic error in the form. */
       formError?: "generic";
+      /** Set when the village is read-only (approved deactivation). */
+      code?: typeof VILLAGE_READ_ONLY_CODE;
       fieldErrors?: Partial<Record<HouseField, HouseErrorCode>>;
     };
 
@@ -35,14 +38,19 @@ export async function createHouseAction(
 
   let outcome:
     | { kind: "created"; houseId: string }
-    | { kind: "village_inactive" };
+    | { kind: "village_inactive" }
+    | { kind: "village_read_only" };
 
   try {
     outcome = await prisma.$transaction(async (tx) => {
       // Village must still be ACTIVE when the write happens, not only when
       // the request started.
-      if (!(await lockActiveVillage(tx, villageId))) {
-        return { kind: "village_inactive" } as const;
+      const guard = await guardVillageWrite(tx, villageId);
+
+      if (!guard.ok) {
+        return guard.reason === "VILLAGE_READ_ONLY"
+          ? ({ kind: "village_read_only" } as const)
+          : ({ kind: "village_inactive" } as const);
       }
 
       const createdHouse = await tx.house.create({
@@ -69,6 +77,10 @@ export async function createHouseAction(
       };
     }
     return { success: false, formError: "generic" };
+  }
+
+  if (outcome.kind === "village_read_only") {
+    return { success: false, formError: "generic", code: VILLAGE_READ_ONLY_CODE };
   }
 
   if (outcome.kind === "village_inactive") {

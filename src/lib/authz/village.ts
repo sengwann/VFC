@@ -7,6 +7,10 @@ import { prisma } from "../prisma";
 
 import { requireSystemAdmin } from "./roles";
 import type { VillageLifecycleContext } from "./authz.types";
+import {
+  evaluateVillageWrite,
+  type VillageWriteEvaluation,
+} from "../../features/village-deactivation/lib/village-deactivation-rules";
 
 export async function requireVillageLifecycleAccess(
   villageId: string,
@@ -35,23 +39,54 @@ export async function requireVillageLifecycleAccess(
 }
 
 /**
- * Call INSIDE a write transaction. Takes a shared row lock on the village and
- * reports whether it is ACTIVE. Concurrent house writes do not block each
- * other (FOR SHARE), but a suspend/deactivate that takes FOR UPDATE on the
- * same row (B03, separate chat) will wait for them, and the other way round.
- * Returns false when the village is missing or not ACTIVE; the caller ends the
- * transaction and then calls redirectForbidden().
+ * THE canonical village mutation guard. Every village-scoped write calls it
+ * INSIDE its write transaction, before touching any village data.
+ *
+ * It reads from the database (never the session or a cache) in two separate
+ * statements, on purpose:
+ *
+ *   1. SELECT status FROM "Village" ... FOR SHARE. Takes a shared row lock, so
+ *      a concurrent approval (which UPDATEs this row) waits for this
+ *      transaction, and this transaction waits for an approval already in
+ *      flight. In a Serializable transaction a village row that changed after
+ *      the snapshot makes this statement fail with 40001, and
+ *      withSerializableRetry runs the whole mutation again.
+ *   2. A separate EXISTS on an APPROVED request. It must be its own statement:
+ *      under READ COMMITTED it then gets a fresh snapshot that already sees an
+ *      approval committed while statement 1 was waiting. A single combined
+ *      statement would keep the stale snapshot.
+ *
+ * The caller ends the transaction on { ok: false } and answers with a
+ * machine-readable error: VILLAGE_INACTIVE (existing behavior) or
+ * VILLAGE_READ_ONLY (see VILLAGE_READ_ONLY_CODE).
  */
-export async function lockActiveVillage(
+export async function guardVillageWrite(
   tx: Prisma.TransactionClient,
   villageId: string,
-): Promise<boolean> {
-  const rows = await tx.$queryRaw<{ status: string }[]>`
+): Promise<VillageWriteEvaluation> {
+  const villages = await tx.$queryRaw<{ status: string }[]>`
     SELECT "status"::text AS "status"
     FROM "Village"
     WHERE "id" = ${villageId}
     FOR SHARE
   `;
+  const villageStatus = villages[0]?.status ?? null;
 
-  return rows[0]?.status === VillageStatus.ACTIVE;
+  if (villageStatus !== VillageStatus.ACTIVE) {
+    return evaluateVillageWrite({ villageStatus, hasApprovedRequest: false });
+  }
+
+  const approved = await tx.$queryRaw<{ found: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM "VillageDeactivationRequest"
+      WHERE "villageId" = ${villageId}
+        AND "status" = 'APPROVED'::"DeactivationRequestStatus"
+    ) AS "found"
+  `;
+
+  return evaluateVillageWrite({
+    villageStatus,
+    hasApprovedRequest: approved[0]?.found === true,
+  });
 }

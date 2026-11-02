@@ -15,6 +15,8 @@ export const LIFECYCLE_ERROR_PARAM = "error";
 export const LIFECYCLE_ERROR_REASON_TOO_LONG = "reason_too_long";
 /** A serialization conflict that survived all retries. */
 export const LIFECYCLE_ERROR_BUSY = "busy";
+/** Suspend refused while a deactivation countdown is running. */
+export const LIFECYCLE_ERROR_DEACTIVATION_COUNTDOWN = "deactivation_countdown";
 
 export function parseVillageId(value: unknown): string | null {
   if (typeof value !== "string") {

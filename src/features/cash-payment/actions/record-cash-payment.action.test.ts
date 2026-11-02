@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     createAuditLog: vi.fn(),
     isFundOpenForPayment: vi.fn(() => true),
     getFundAmountPerHouse: vi.fn(),
+    guardVillageWrite: vi.fn(),
   };
 });
 
@@ -35,6 +36,9 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/db/transaction", () => ({
   withSerializableRetry: (operation: () => Promise<unknown>) => operation(),
+}));
+vi.mock("@/lib/authz/village", () => ({
+  guardVillageWrite: mocks.guardVillageWrite,
 }));
 vi.mock("../lib/cash-payment-access", () => ({
   requireCashPaymentAccess: mocks.requireCashPaymentAccess,
@@ -69,6 +73,7 @@ function form(overrides: Record<string, string> = {}): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.guardVillageWrite.mockResolvedValue({ ok: true });
   mocks.requireCashPaymentAccess.mockResolvedValue({
     collector: {
       user: {
@@ -130,6 +135,33 @@ describe("recordCashPaymentAction", () => {
       formError: "A valid payment already exists for this fund and house.",
     });
 
+    expect(mocks.tx.payment.create).not.toHaveBeenCalled();
+    expect(mocks.tx.receipt.create).not.toHaveBeenCalled();
+    expect(mocks.createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("asks the canonical guard first, inside the transaction, for the collector's village", async () => {
+    mocks.tx.payment.findFirst.mockResolvedValue(null);
+    mocks.tx.payment.create.mockResolvedValue({ id: "pay1" });
+
+    const result = await recordCashPaymentAction(form());
+
+    expect(result).toEqual({ success: true });
+    expect(mocks.guardVillageWrite).toHaveBeenCalledWith(mocks.tx, "v1");
+    expect(mocks.guardVillageWrite.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.tx.fund.findUnique.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("returns VILLAGE_READ_ONLY and writes nothing while the village is read-only", async () => {
+    mocks.guardVillageWrite.mockResolvedValue({
+      ok: false,
+      reason: "VILLAGE_READ_ONLY",
+    });
+
+    const result = await recordCashPaymentAction(form());
+
+    expect(result).toMatchObject({ success: false, code: "VILLAGE_READ_ONLY" });
     expect(mocks.tx.payment.create).not.toHaveBeenCalled();
     expect(mocks.tx.receipt.create).not.toHaveBeenCalled();
     expect(mocks.createAuditLog).not.toHaveBeenCalled();

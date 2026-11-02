@@ -2,6 +2,7 @@ import "server-only";
 import { FundStatus, MembershipStatus, UserRole } from "@prisma/client";
 import { getCurrentPeriod } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { getOpenDeactivationRequest } from "../../village-deactivation/lib/deactivation-queries";
 import type { SessionUser } from "@/lib/auth/auth.types";
 
 export interface ChiefNotificationSummary {
@@ -13,6 +14,8 @@ export interface ChiefNotificationSummary {
   headlessHouseCount: number;
   /** Set only when exactly one house is involved, so the Chief can open it directly. */
   singleHeadlessHouseId: string | null;
+  /** State of the village's open deactivation request, if any. */
+  deactivationStatus: "PENDING" | "APPROVED" | null;
 }
 
 export interface HeadOfHouseNotificationSummary {
@@ -49,7 +52,12 @@ export async function computeNotificationSummary(params: {
   const chiefPromise: Promise<ChiefNotificationSummary | null> = isChief
     ? (async () => {
         const { year, month } = getCurrentPeriod();
-        const [activeCollector, activeFund, headlessGroups] = await Promise.all(
+        const [
+          activeCollector,
+          activeFund,
+          headlessGroups,
+          openDeactivation,
+        ] = await Promise.all(
           [
             prisma.collectorAssignment.findFirst({
               where: { villageId, year, month, isActive: true },
@@ -72,6 +80,7 @@ export async function computeNotificationSummary(params: {
               },
               _count: { _all: true },
             }),
+            getOpenDeactivationRequest(villageId),
           ],
         );
 
@@ -88,6 +97,11 @@ export async function computeNotificationSummary(params: {
           headlessHouseCount,
           singleHeadlessHouseId:
             headlessHouseCount === 1 ? headlessGroups[0].houseId : null,
+          deactivationStatus:
+            openDeactivation?.status === "PENDING" ||
+            openDeactivation?.status === "APPROVED"
+              ? openDeactivation.status
+              : null,
         };
       })()
     : Promise.resolve(null);

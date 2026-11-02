@@ -10,7 +10,11 @@ import {
 } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { withSerializableRetry } from "../../../lib/db/transaction";
-import { lockActiveVillage } from "../../../lib/authz/village";
+import { guardVillageWrite } from "../../../lib/authz/village";
+import {
+  VILLAGE_READ_ONLY_CODE,
+  withReadOnlyError,
+} from "../../village-deactivation/lib/village-deactivation-rules";
 import { lockHouse } from "../../../lib/authz/house";
 import { requireChief } from "../../../lib/authz/roles";
 import { revalidateVillageShell } from "../../shell/lib/shell-revalidation";
@@ -81,8 +85,10 @@ export async function chiefApproveFirstMemberAction(
     await withSerializableRetry(() =>
       prisma.$transaction(
         async (tx) => {
-          if (!(await lockActiveVillage(tx, villageId))) {
-            throw new Error("VILLAGE_INACTIVE");
+          const guard = await guardVillageWrite(tx, villageId);
+
+          if (!guard.ok) {
+            throw new Error(guard.reason);
           }
 
           // B05 hardening: village-then-house lock ordering. Lock the house
@@ -146,7 +152,11 @@ export async function chiefApproveFirstMemberAction(
         },
       ),
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === VILLAGE_READ_ONLY_CODE) {
+      redirect(withReadOnlyError(detailPath));
+    }
+
     redirect(detailPath);
   }
 

@@ -14,7 +14,9 @@ import { canTransition } from "./village-lifecycle-rules";
  *   this feature and needs explicit authorization as a separate feature.
  *
  * Owner decision (B03, deactivation is non-cascading):
- *   Deactivating a village only changes Village.status and writes an audit
+ *   Deactivation now happens only through the deactivation workflow (approved
+ *   request, 24h countdown, automatic completion); a System Admin cannot
+ *   deactivate directly. Deactivating a village only changes Village.status and writes an audit
  *   entry. It never changes user memberships, never clears or releases user
  *   emails/phones, and never releases the villageCode. Those identifiers stay
  *   reserved permanently, and the deactivate confirmation tells the admin so.
@@ -34,6 +36,3 @@ export function canReactivateVillage(status: VillageStatus): boolean {
   return canTransition("reactivate", status);
 }
 
-export function canDeactivateVillage(status: VillageStatus): boolean {
-  return canTransition("deactivate", status);
-}

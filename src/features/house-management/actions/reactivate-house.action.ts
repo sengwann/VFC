@@ -5,7 +5,8 @@ import { AuditActionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireChief } from "@/lib/authz";
 import { redirectForbidden } from "@/lib/authz/authz.errors";
-import { lockActiveVillage } from "@/lib/authz/village";
+import { guardVillageWrite } from "@/lib/authz/village";
+import { withReadOnlyError } from "@/features/village-deactivation/lib/village-deactivation-rules";
 import { canReactivateHouse } from "../lib/house-rules";
 import { AuditEntityType, createAuditLog } from "@/lib/audit";
 
@@ -13,8 +14,12 @@ export async function reactivateHouseAction(houseId: string): Promise<void> {
   const { user, villageId } = await requireChief();
 
   const outcome = await prisma.$transaction(async (tx) => {
-    if (!(await lockActiveVillage(tx, villageId))) {
-      return "village_inactive" as const;
+    const guard = await guardVillageWrite(tx, villageId);
+
+    if (!guard.ok) {
+      return guard.reason === "VILLAGE_READ_ONLY"
+        ? ("village_read_only" as const)
+        : ("village_inactive" as const);
     }
 
     // Scoped by village: a house from another village looks like "not found".
@@ -51,6 +56,10 @@ export async function reactivateHouseAction(houseId: string): Promise<void> {
 
     return "done" as const;
   });
+
+  if (outcome === "village_read_only") {
+    return redirect(withReadOnlyError(`/village/houses/${houseId}`));
+  }
 
   if (outcome === "village_inactive") {
     return redirectForbidden();

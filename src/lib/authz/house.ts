@@ -103,7 +103,7 @@ export async function requireHouseAccess(
 }
 
 /**
- * Call INSIDE a write transaction, AFTER lockActiveVillage where the flow
+ * Call INSIDE a write transaction, AFTER guardVillageWrite where the flow
  * already takes it (village-then-house lock ordering). Takes a row lock on
  * the house so concurrent membership changes (register/approve/rejoin) and
  * house lifecycle writes serialize instead of racing read-then-write checks.

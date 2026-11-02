@@ -9,12 +9,9 @@ import { reactivateVillageAction } from "../actions/reactivate-village.action";
 import { suspendVillageAction } from "../actions/suspend-village.action";
 import { REASON_MAX_LENGTH } from "../lib/lifecycle-input";
 import {
-  canDeactivateVillage,
   canReactivateVillage,
   canSuspendVillage,
 } from "../lib/village-lifecycle";
-import { fillTemplate } from "../lib/fill-template";
-import { DeactivateVillageDialog } from "./deactivate-village-dialog";
 import { LifecycleSubmitButton } from "./lifecycle-submit-button";
 
 const STATUS_DESCRIPTION_KEYS: Record<VillageStatus, TranslationKey> = {
@@ -25,23 +22,19 @@ const STATUS_DESCRIPTION_KEYS: Record<VillageStatus, TranslationKey> = {
 
 /*
  * Server component. Which actions appear is still decided by the
- * canSuspend/canReactivate/canDeactivate rules; the actions and their
- * `villageId` form field are unchanged. Each action also accepts an optional
- * `reason` (max REASON_MAX_LENGTH characters) that is saved in the audit entry.
- * Deactivate (final) is separated into its own zone and needs an explicit
- * confirmation.
+ * canSuspend/canReactivate rules; the actions and their `villageId` form field
+ * are unchanged. Each action also accepts an optional `reason` (max
+ * REASON_MAX_LENGTH characters) that is saved in the audit entry.
+ * There is no deactivate action here: a village is deactivated only by the
+ * deactivation workflow (Chief request, System Admin approval, countdown).
  */
 export function VillageLifecycleActions({
   status,
   villageId,
-  villageCode,
-  villageName,
   language,
 }: {
   status: VillageStatus;
   villageId: string;
-  villageCode: string;
-  villageName: string;
   language: LanguagePreference;
 }) {
   const t = getT(language);
@@ -95,32 +88,6 @@ export function VillageLifecycleActions({
             {t("adminVillages.reactivate.button")}
           </LifecycleSubmitButton>
         </form>
-      ) : null}
-
-      {canDeactivateVillage(status) ? (
-        <div className="space-y-3 rounded-lg border border-danger-border bg-danger-soft/40 p-4">
-          <h3 className="text-sm font-semibold text-danger-strong">
-            {t("adminVillages.deactivate.title")}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {t("adminVillages.deactivate.hint")}
-          </p>
-          <DeactivateVillageDialog
-            labels={{
-              trigger: t("adminVillages.deactivate.button"),
-              title: t("adminVillages.deactivate.confirmTitle"),
-              body: fillTemplate(t("adminVillages.deactivate.confirmBody"), {
-                name: villageName,
-                code: villageCode,
-              }),
-              confirm: t("adminVillages.deactivate.confirm"),
-              cancel: t("common.cancel"),
-              reasonLabel: t("adminVillages.reason.label"),
-              reasonHint: t("adminVillages.reason.hint"),
-            }}
-            villageId={villageId}
-          />
-        </div>
       ) : null}
     </div>
   );

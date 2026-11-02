@@ -7,6 +7,9 @@ import { requireChief, getCurrentPeriod } from "../../../lib/authz";
 import { canDeactivateAssignment } from "../lib/collector-assignment-rules";
 import { getPeriodStatus } from "../lib/collector-period";
 import { AuditEntityType, createAuditLog } from "../../../lib/audit";
+import { guardVillageWrite } from "../../../lib/authz/village";
+import { redirectForbidden } from "../../../lib/authz/authz.errors";
+import { withReadOnlyError } from "../../village-deactivation/lib/village-deactivation-rules";
 
 function getFormDataString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -53,7 +56,15 @@ export async function deactivateCollectorAssignmentAction(
     redirect("/village/collectors");
   }
 
-  await prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
+    const guard = await guardVillageWrite(tx, villageId);
+
+    if (!guard.ok) {
+      return guard.reason === "VILLAGE_READ_ONLY"
+        ? ("village_read_only" as const)
+        : ("village_inactive" as const);
+    }
+
     const result = await tx.collectorAssignment.updateMany({
       where: {
         id: assignment.id,
@@ -66,7 +77,7 @@ export async function deactivateCollectorAssignmentAction(
     // Another request already deactivated it. Skip the audit write so a
     // double submit does not create duplicate audit entries.
     if (result.count === 0) {
-      return;
+      return "done" as const;
     }
 
     await createAuditLog(tx, {
@@ -83,7 +94,17 @@ export async function deactivateCollectorAssignmentAction(
         assignedUserName: assignment.user.name,
       },
     });
+
+    return "done" as const;
   });
+
+  if (outcome === "village_read_only") {
+    redirect(withReadOnlyError("/village/collectors"));
+  }
+
+  if (outcome === "village_inactive") {
+    return redirectForbidden();
+  }
 
   redirect("/village/collectors");
 }

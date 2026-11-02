@@ -93,6 +93,19 @@ export async function resolveEntityInfo(
         : { label: entityId, href: null };
     }
 
+    case AuditEntityType.DEACTIVATION_REQUEST: {
+      const request = await prisma.villageDeactivationRequest.findFirst({
+        where: { id: entityId, villageId },
+        select: { status: true, village: { select: { villageCode: true } } },
+      });
+      return request
+        ? {
+            label: `Deactivation request · ${request.village.villageCode}`,
+            href: null,
+          }
+        : { label: entityId, href: null };
+    }
+
     case AuditEntityType.PAYMENT:
       return { label: "Payment record", href: null };
 

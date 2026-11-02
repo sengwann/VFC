@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ADMIN_LIFECYCLE_ACTIONS,
   LIFECYCLE_TARGET_STATUS,
   canTransition,
+  isAdminLifecycleAction,
   type VillageLifecycleAction,
   type VillageLifecycleStatus,
 } from "./village-lifecycle-rules";
@@ -44,5 +46,16 @@ describe("LIFECYCLE_TARGET_STATUS", () => {
       reactivate: "ACTIVE",
       deactivate: "DEACTIVATED",
     });
+  });
+});
+
+describe("admin lifecycle actions", () => {
+  it("are only suspend and reactivate; deactivate is not an admin action", () => {
+    expect([...ADMIN_LIFECYCLE_ACTIONS]).toEqual(["suspend", "reactivate"]);
+    expect(isAdminLifecycleAction("suspend")).toBe(true);
+    expect(isAdminLifecycleAction("reactivate")).toBe(true);
+    for (const value of ["deactivate", "", "SUSPEND", null, undefined, 1]) {
+      expect(isAdminLifecycleAction(value)).toBe(false);
+    }
   });
 });

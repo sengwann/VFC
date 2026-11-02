@@ -14,7 +14,8 @@ export type NavIconName =
   | "credit-card"
   | "receipt"
   | "shield-check"
-  | "banknote";
+  | "banknote"
+  | "power";
 
 export type NavBadgeVariant = "default" | "alert";
 
@@ -41,6 +42,7 @@ function formatBadgeCount(count: number): string {
 
 export function buildPlatformNavigation(
   language: LanguagePreference,
+  pendingDeactivationRequests = 0,
 ): ShellNavigation {
   const t = getT(language);
 
@@ -60,9 +62,20 @@ export function buildPlatformNavigation(
     iconName: "scroll-text",
   };
 
+  const deactivationRequests: NavItem = {
+    label: t("nav.deactivationRequests"),
+    href: "/admin/deactivation-requests",
+    iconName: "power",
+    badge:
+      pendingDeactivationRequests > 0
+        ? formatBadgeCount(pendingDeactivationRequests)
+        : undefined,
+    badgeVariant: pendingDeactivationRequests > 0 ? "alert" : undefined,
+  };
+
   return {
-    sidebarItems: [dashboard, villages, platformAudit],
-    mobileItems: [dashboard, villages, platformAudit],
+    sidebarItems: [dashboard, villages, deactivationRequests, platformAudit],
+    mobileItems: [dashboard, villages, deactivationRequests, platformAudit],
   };
 }
 
@@ -142,6 +155,13 @@ export function buildVillageNavigation(params: {
         disabled: true,
         badge: "Module 18",
       };
+  const deactivation: NavItem = {
+    label: t("nav.deactivation"),
+    href: "/village/deactivation",
+    iconName: "power",
+    badge: chiefSummary?.deactivationStatus ? "!" : undefined,
+    badgeVariant: chiefSummary?.deactivationStatus ? "alert" : undefined,
+  };
     const audit: NavItem = {
     label: t("nav.auditLog"),
     href: "/village/audit",
@@ -149,7 +169,7 @@ export function buildVillageNavigation(params: {
   };
 
   if (user.role === UserRole.CHIEF) {
-    sidebarItems.push(houses, collectors, funds, receipts, audit);
+    sidebarItems.push(houses, collectors, funds, receipts, audit, deactivation);
   }
   if (isHeadOfHouse) {
     sidebarItems.push(members);

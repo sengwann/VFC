@@ -1,13 +1,16 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { getOpenDeactivationRequest } from "@/features/village-deactivation/lib/deactivation-queries";
 import { getPlatformShellContext } from "@/features/shell/lib/shell-context";
 import { VillageLifecycleActions } from "@/features/village-management/components/village-lifecycle-actions";
 import { VillageStatusBadge } from "@/features/village-management/components/village-status-badge";
 import {
   LIFECYCLE_ERROR_BUSY,
+  LIFECYCLE_ERROR_DEACTIVATION_COUNTDOWN,
   LIFECYCLE_ERROR_PARAM,
   LIFECYCLE_ERROR_REASON_TOO_LONG,
 } from "@/features/village-management/lib/lifecycle-input";
@@ -47,10 +50,14 @@ export default async function VillageDetailPage({
   const { language } = await getPlatformShellContext();
   const t = getT(language);
 
+  const openDeactivation = await getOpenDeactivationRequest(village.id);
+
   const query = (await searchParams) ?? {};
   const errorParam = firstValue(query[LIFECYCLE_ERROR_PARAM]);
   const showReasonTooLong = errorParam === LIFECYCLE_ERROR_REASON_TOO_LONG;
   const showBusy = errorParam === LIFECYCLE_ERROR_BUSY;
+  const showCountdown =
+    errorParam === LIFECYCLE_ERROR_DEACTIVATION_COUNTDOWN;
 
   const statusLabels: Record<typeof village.status, TranslationKey> = {
     ACTIVE: "adminDashboard.status.active",
@@ -117,6 +124,30 @@ export default async function VillageDetailPage({
         <Alert tone="danger">{t("adminVillages.err.retry")}</Alert>
       ) : null}
 
+      {showCountdown ? (
+        <Alert tone="danger">{t("adminVillages.err.deactivationCountdown")}</Alert>
+      ) : null}
+
+      {openDeactivation ? (
+        <Alert
+          action={
+            <Link
+              className="text-sm font-semibold underline"
+              href="/admin/deactivation-requests"
+            >
+              {t("deact.admin.viewRequests")}
+            </Link>
+          }
+          tone="warning"
+        >
+          {t(
+            openDeactivation.status === "APPROVED"
+              ? "shell.attention.deactivationApproved"
+              : "shell.attention.deactivationPending",
+          )}
+        </Alert>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <Card>
           <CardHeader className="pb-3 sm:pb-3">
@@ -151,9 +182,7 @@ export default async function VillageDetailPage({
             <VillageLifecycleActions
               language={language}
               status={village.status}
-              villageCode={village.villageCode}
               villageId={village.id}
-              villageName={village.name}
             />
           </CardContent>
         </Card>
