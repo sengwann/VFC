@@ -23,6 +23,8 @@ const ACTION_KEYS: Record<string, TranslationKey> = {
   ACCEPT: "audit.action.accept",
   LOGIN: "audit.action.login",
   LOGOUT: "audit.action.logout",
+  CANCEL: "audit.action.cancel",
+  COMPLETE: "audit.action.complete",
 };
 
 const ACTION_TONES: Record<string, BadgeVariant> = {
@@ -38,6 +40,8 @@ const ACTION_TONES: Record<string, BadgeVariant> = {
   ACCEPT: "success",
   LOGIN: "neutral",
   LOGOUT: "neutral",
+  CANCEL: "warning",
+  COMPLETE: "success",
 };
 
 const ENTITY_KEYS: Record<string, TranslationKey> = {
@@ -49,6 +53,7 @@ const ENTITY_KEYS: Record<string, TranslationKey> = {
   PAYMENT: "audit.entity.payment",
   RECEIPT: "audit.entity.receipt",
   SESSION: "audit.entity.session",
+  DEACTIVATION_REQUEST: "audit.entity.deactivationRequest",
 };
 
 const METADATA_KEYS: Record<string, TranslationKey> = {
@@ -56,6 +61,45 @@ const METADATA_KEYS: Record<string, TranslationKey> = {
   name: "audit.meta.name",
   previousStatus: "audit.meta.previousStatus",
   newStatus: "audit.meta.newStatus",
+  requestId: "audit.meta.requestId",
+  requesterUserId: "audit.meta.requesterUserId",
+  reason: "audit.meta.reason",
+  outcome: "audit.meta.outcome",
+  blockReason: "audit.meta.blockReason",
+  approvedAt: "audit.meta.approvedAt",
+  scheduledDeactivationAt: "audit.meta.scheduledDeactivationAt",
+  rejectedAt: "audit.meta.rejectedAt",
+  rejectionReason: "audit.meta.rejectionReason",
+  cooldownEndsAt: "audit.meta.cooldownEndsAt",
+  cancelledAt: "audit.meta.cancelledAt",
+  cancellationReason: "audit.meta.cancellationReason",
+  completedAt: "audit.meta.completedAt",
+  completedBy: "audit.meta.completedBy",
+  readOnly: "audit.meta.readOnly",
+  notificationDelivery: "audit.meta.notificationDelivery",
+  notificationEvent: "audit.meta.notificationEvent",
+  error: "audit.meta.error",
+};
+
+/** Metadata values that are ISO timestamps, shown in Yangon time. */
+const DATE_METADATA_KEYS = new Set([
+  "approvedAt",
+  "scheduledDeactivationAt",
+  "rejectedAt",
+  "cooldownEndsAt",
+  "cancelledAt",
+  "completedAt",
+]);
+
+const ENUM_VALUE_KEYS: Record<string, TranslationKey> = {
+  SUCCESS: "audit.value.success",
+  BLOCKED: "audit.value.blocked",
+  FAILED: "audit.value.failed",
+  PENDING: "deact.status.pending",
+  APPROVED: "deact.status.approved",
+  REJECTED: "deact.status.rejected",
+  CANCELLED: "deact.status.cancelled",
+  COMPLETED: "deact.status.completed",
 };
 
 const STATUS_VALUE_KEYS: Record<string, TranslationKey> = {
@@ -71,6 +115,7 @@ const STATUS_TONES: Record<string, BadgeVariant> = {
 };
 
 const STATUS_METADATA_KEYS = new Set(["previousStatus", "newStatus"]);
+const ENUM_METADATA_KEYS = new Set(["outcome", "notificationDelivery"]);
 
 /** "STATUS_CHANGE" or "villageCode" -> "Status change" / "Village code". */
 export function humanize(value: string): string {
@@ -102,7 +147,7 @@ export function getMetadataKeyLabel(t: Translate, key: string): string {
 }
 
 export function getStatusLabel(t: Translate, value: string): string {
-  const key = STATUS_VALUE_KEYS[value];
+  const key = STATUS_VALUE_KEYS[value] ?? ENUM_VALUE_KEYS[value];
   return key ? t(key) : value;
 }
 
@@ -122,6 +167,13 @@ export function formatMetadataValue(
     return t(value ? "audit.value.yes" : "audit.value.no");
   }
   if (typeof value === "string") {
+    if (DATE_METADATA_KEYS.has(key)) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : formatYangonDateTime(date);
+    }
+    if (ENUM_METADATA_KEYS.has(key)) {
+      return ENUM_VALUE_KEYS[value] ? t(ENUM_VALUE_KEYS[value]) : value;
+    }
     return STATUS_METADATA_KEYS.has(key) ? getStatusLabel(t, value) : value;
   }
   if (typeof value === "object") {

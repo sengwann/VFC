@@ -179,3 +179,24 @@ What a pass does:
 Timing: with the default 60 second interval a village is deactivated up to about a minute after its deadline, never before it. Lower `DEACTIVATION_WORKER_INTERVAL_SECONDS` for tighter timing. Cancellation stays strictly before the deadline regardless of worker lag, because the transition compares against the stored deadline, not against whether the worker has run.
 
 Not covered by the worker: it does not alert when it is not running. Overdue APPROVED requests (deadline passed, still APPROVED) are the signal; the Phase 8 admin page lists them.
+
+## UI, translations and audit labels (Phase 8)
+
+Pages (both are reachable in every workflow state, including read-only; the rules forbid route-level gating, and what a page shows is only a convenience because every action re-checks on the server):
+
+- `/village/deactivation` (Chief only, `requireChief`): request form when the village is ACTIVE and nothing is open; "waiting for approval" while PENDING; while APPROVED the read-only explanation, a live countdown to the stored deadline, and the cancel form (reason plus confirmation) until the deadline; the last rejection or cancellation with its reason, and the cooldown end when one is running. Notifications card with "mark all as read".
+- `/admin/deactivation-requests` (System Admin): open requests with approve and reject (reason required) forms for PENDING ones, the countdown for APPROVED ones, an "overdue" warning when the deadline has passed and the worker has not completed it yet, the worker's last processing error when there is one, the 20 most recent decisions, and the notifications card.
+- Every village page shows a read-only banner while a request is APPROVED. The Chief gets a link to the cancel page.
+- Admin village detail shows an alert linking to the requests page while a request is open.
+
+Navigation and attention: System Admins get a "Deactivation requests" item with a badge for PENDING requests. The Chief gets a "Deactivation" item (flagged while a request is open) and a Needs Attention entry for PENDING and APPROVED. The Chief's notification summary has a new `deactivationStatus` field.
+
+Feedback: the actions redirect with `?notice=` / `?error=` / `?until=`. `resolveFeedback` maps known codes to translated text, formats the cooldown end, and shows nothing for unknown codes (query text is never rendered).
+
+Notifications are rendered by `describeNotification` from the stored type and params in the reader's language. Stored text (village name, reasons) is substituted in a single pass and displayed as plain text. `markNotificationsReadAction` takes the user from the session, never the form, and only changes that user's own read marks (so it works during read-only; it is listed as exempt in the guard-coverage test).
+
+The countdown is display only. It starts from the server's time and ticks from that offset, so a wrong device clock does not skew it, and reaching zero changes nothing by itself.
+
+Audit: labels for the `CANCEL` and `COMPLETE` actions, the `DEACTIVATION_REQUEST` entity (resolved to the village code), all workflow metadata keys, request statuses and outcome values. Timestamp metadata is shown in Yangon time. Unknown keys still fall back to a readable form.
+
+Translations: 81 new keys in English and Burmese (`deact.*`, `audit.*`, `nav.*`, `shell.attention.*`). The Burmese text is a first draft; have a native speaker review the wording. Tests check that both languages have every key and the same placeholders.

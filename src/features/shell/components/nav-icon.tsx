@@ -5,6 +5,7 @@ import {
   CreditCard,
   Home,
   Landmark,
+  PowerOff,
   Receipt,
   ScrollText,
   ShieldCheck,
@@ -35,6 +36,7 @@ const iconMap: Record<IconKey, LucideIcon> = {
   receipt: Receipt,
   "shield-check": ShieldCheck,
   banknote: Banknote,
+  power: PowerOff,
   "user-circle": UserCircle,
   settings: Settings,
 };

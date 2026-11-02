@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { getOpenDeactivationRequest } from "@/features/village-deactivation/lib/deactivation-queries";
 import { getPlatformShellContext } from "@/features/shell/lib/shell-context";
 import { VillageLifecycleActions } from "@/features/village-management/components/village-lifecycle-actions";
 import { VillageStatusBadge } from "@/features/village-management/components/village-status-badge";
@@ -47,6 +49,8 @@ export default async function VillageDetailPage({
   const village = await requireVillageLifecycleAccess(villageId);
   const { language } = await getPlatformShellContext();
   const t = getT(language);
+
+  const openDeactivation = await getOpenDeactivationRequest(village.id);
 
   const query = (await searchParams) ?? {};
   const errorParam = firstValue(query[LIFECYCLE_ERROR_PARAM]);
@@ -122,6 +126,26 @@ export default async function VillageDetailPage({
 
       {showCountdown ? (
         <Alert tone="danger">{t("adminVillages.err.deactivationCountdown")}</Alert>
+      ) : null}
+
+      {openDeactivation ? (
+        <Alert
+          action={
+            <Link
+              className="text-sm font-semibold underline"
+              href="/admin/deactivation-requests"
+            >
+              {t("deact.admin.viewRequests")}
+            </Link>
+          }
+          tone="warning"
+        >
+          {t(
+            openDeactivation.status === "APPROVED"
+              ? "shell.attention.deactivationApproved"
+              : "shell.attention.deactivationPending",
+          )}
+        </Alert>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">

@@ -65,6 +65,8 @@ const EXEMPT: Record<string, string> = {
     "System Admin workflow transition; it is what starts read-only, and it takes the village lock itself.",
   "src/features/village-deactivation/actions/reject-deactivation-request.action.ts":
     "System Admin workflow transition; the village stays fully operational.",
+  "src/features/notifications/actions/mark-notifications-read.action.ts":
+    "Changes only the signed-in user's own read marks, never village records; it must work during read-only.",
   "src/features/village-management/actions/create-village.action.ts":
     "Platform action that creates a new village; there is no village to guard yet.",
   "src/features/village-management/actions/suspend-village.action.ts":

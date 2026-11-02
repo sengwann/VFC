@@ -37,7 +37,20 @@ export function NeedsAttentionCard({
       hasActiveFund,
       pendingHeadlessMembers,
       singleHeadlessHouseId,
+      deactivationStatus,
     } = notifications.chief;
+
+    if (deactivationStatus) {
+      items.push({
+        key: "deactivation",
+        label:
+          deactivationStatus === "APPROVED"
+            ? t("shell.attention.deactivationApproved")
+            : t("shell.attention.deactivationPending"),
+        href: "/village/deactivation",
+        variant: "warning",
+      });
+    }
 
     // Pending members of houses with no head: only the Chief can decide.
     if (pendingHeadlessMembers > 0) {

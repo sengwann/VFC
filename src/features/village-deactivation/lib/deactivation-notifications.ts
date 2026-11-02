@@ -221,3 +221,17 @@ export async function markNotificationsRead(
 
   return result.count;
 }
+
+/** Marks every unread notification of this user as read. */
+export async function markAllNotificationsRead(
+  client: Client,
+  userId: string,
+  now: Date,
+): Promise<number> {
+  const result = await client.notification.updateMany({
+    where: { userId, readAt: null },
+    data: { readAt: now },
+  });
+
+  return result.count;
+}
