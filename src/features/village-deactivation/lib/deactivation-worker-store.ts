@@ -1,5 +1,6 @@
-import type { Prisma } from "@prisma/client";
+import { AuditActionType, type Prisma } from "@prisma/client";
 
+import { AuditEntityType, createAuditLog } from "../../../lib/audit";
 import type { WorkerStore } from "./deactivation-worker";
 
 /*
@@ -48,6 +49,15 @@ export function createPrismaWorkerStore(client: Client): WorkerStore {
     },
 
     async recordFailure(requestId, message, options) {
+      const previous = await client.villageDeactivationRequest.findUnique({
+        where: { id: requestId },
+        select: {
+          villageId: true,
+          lastProcessingError: true,
+          processingAttempts: true,
+        },
+      });
+
       await client.$executeRawUnsafe(
         `UPDATE "VillageDeactivationRequest"
             SET "lastProcessingError" = $2,
@@ -58,6 +68,26 @@ export function createPrismaWorkerStore(client: Client): WorkerStore {
         message,
         options.retryNow,
       );
+
+      // Audit trail for failed processing (rules, section 10). Only when the
+      // error changes, so a persistent failure retried every pass does not
+      // fill the audit log; the attempt count stays on the request row.
+      if (previous && previous.lastProcessingError !== message) {
+        await createAuditLog(client, {
+          actionType: AuditActionType.UPDATE,
+          entityType: AuditEntityType.DEACTIVATION_REQUEST,
+          entityId: requestId,
+          villageId: previous.villageId,
+          actorUserId: null,
+          metadata: {
+            requestId,
+            outcome: "BLOCKED",
+            blockReason: "PROCESSING_FAILED",
+            error: message,
+            processingAttempts: previous.processingAttempts,
+          },
+        });
+      }
     },
 
     async listReconcileRequestIds(limit, windowSeconds) {

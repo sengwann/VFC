@@ -1144,6 +1144,7 @@ export const my: Record<TranslationKey, string> = {
   "audit.meta.readOnly": "ကြည့်ရန်သာ မုဒ်",
   "audit.meta.notificationDelivery": "အသိပေးချက် ပို့ဆောင်မှု",
   "audit.meta.notificationEvent": "အသိပေးချက် ဖြစ်စဉ်",
+  "audit.meta.processingAttempts": "လုပ်ဆောင်ရန် ကြိုးစားမှု အကြိမ်ရေ",
   "audit.meta.error": "အမှား",
   "audit.value.success": "အောင်မြင်",
   "audit.value.blocked": "တားဆီးခံရ",

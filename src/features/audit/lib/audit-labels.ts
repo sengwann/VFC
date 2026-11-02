@@ -79,6 +79,7 @@ const METADATA_KEYS: Record<string, TranslationKey> = {
   notificationDelivery: "audit.meta.notificationDelivery",
   notificationEvent: "audit.meta.notificationEvent",
   error: "audit.meta.error",
+  processingAttempts: "audit.meta.processingAttempts",
 };
 
 /** Metadata values that are ISO timestamps, shown in Yangon time. */
