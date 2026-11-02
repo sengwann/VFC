@@ -1106,6 +1106,7 @@ export const en = {
   "audit.meta.readOnly": "Read-only mode",
   "audit.meta.notificationDelivery": "Notification delivery",
   "audit.meta.notificationEvent": "Notification event",
+  "audit.meta.processingAttempts": "Processing attempts",
   "audit.meta.error": "Error",
   "audit.value.success": "Success",
   "audit.value.blocked": "Blocked",

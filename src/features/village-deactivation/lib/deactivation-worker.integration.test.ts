@@ -204,6 +204,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         village: "ACTIVE",
       });
 
+      // The failure is in the audit log, once per distinct error.
+      const audits = await db.pool.query(
+        `SELECT metadata FROM "AuditLog"
+          WHERE "entityId" = $1 AND metadata->>'blockReason' = 'PROCESSING_FAILED'`,
+        [requestId],
+      );
+      expect(audits.rows).toHaveLength(1);
+      expect(audits.rows[0].metadata.error).toBe("simulated failure");
+
       // The claim was released (retryNow), so the next pass picks it up and succeeds.
       await runWorkerPass(workerDeps());
       expect(await states(requestId, villageId)).toMatchObject({

@@ -107,6 +107,8 @@ export interface DeactivationAuditMetadata {
   notificationDelivery?: "FAILED";
   notificationEvent?: string;
   error?: string;
+  /** Worker bookkeeping on failed completion attempts. */
+  processingAttempts?: number;
   /** On VILLAGE entries: read-only mode switched on (true) or off (false). */
   readOnly?: boolean;
   previousStatus?: string;
