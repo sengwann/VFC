@@ -11,7 +11,8 @@ import {
 } from "./identifiers";
 import { sanitizeRedirectPath } from "./safe-redirect";
 
-const VILLAGE_CODE_REGEX = /^[A-Z0-9]{3,20}$/;
+/** Shape of a normalized village code. Shared with password recovery. */
+export const VILLAGE_CODE_REGEX = /^[A-Z0-9]{3,20}$/;
 
 export type NormalizedIdentifier =
   | {

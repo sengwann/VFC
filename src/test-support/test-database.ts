@@ -46,8 +46,12 @@ export interface TestDatabase {
   close: () => Promise<void>;
 }
 
-/** Tables the deactivation workflow needs; a missing one means "not migrated". */
-const REQUIRED_TABLES = ["VillageDeactivationRequest", "Notification"];
+/** Tables the workflows need; a missing one means "not migrated". */
+const REQUIRED_TABLES = [
+  "VillageDeactivationRequest",
+  "PasswordRecoveryRequest",
+  "Notification",
+];
 
 export async function openTestDatabase(
   env: Record<string, string | undefined> = process.env,
@@ -94,11 +98,13 @@ export async function openTestDatabase(
 /**
  * Records the ids a test run creates so cleanup deletes exactly those rows and
  * nothing else. Delete order matters because every foreign key is RESTRICT:
- * notifications, requests, users, villages.
+ * notifications, requests (deactivation, then password recovery), users,
+ * villages.
  */
 export class TrackedIds {
   readonly notifications: string[] = [];
   readonly requests: string[] = [];
+  readonly recoveryRequests: string[] = [];
   readonly users: string[] = [];
   readonly villages: string[] = [];
 
@@ -109,6 +115,10 @@ export class TrackedIds {
     await pool.query(
       `DELETE FROM "VillageDeactivationRequest" WHERE id = ANY($1)`,
       [this.requests],
+    );
+    await pool.query(
+      `DELETE FROM "PasswordRecoveryRequest" WHERE id = ANY($1)`,
+      [this.recoveryRequests],
     );
     await pool.query(`DELETE FROM "User" WHERE id = ANY($1)`, [this.users]);
     await pool.query(`DELETE FROM "Village" WHERE id = ANY($1)`, [
