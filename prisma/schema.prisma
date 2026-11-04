@@ -69,6 +69,7 @@ model Village {
   receipts Receipt[]
   auditLogs AuditLog[]
   deactivationRequests VillageDeactivationRequest[]
+  passwordRecoveryRequests PasswordRecoveryRequest[]
   notifications Notification[]
   @@index([status])
 }
@@ -104,6 +105,10 @@ model User {
   deactivationRequestsRejected VillageDeactivationRequest[] @relation("DeactivationRejecter")
   deactivationRequestsApproved VillageDeactivationRequest[] @relation("DeactivationApprover")
   deactivationRequestsCancelled VillageDeactivationRequest[] @relation("DeactivationCanceller")
+  recoveryRequestsAsTarget PasswordRecoveryRequest[] @relation("RecoveryTarget")
+  recoveryRequestsIssued PasswordRecoveryRequest[] @relation("RecoveryIssuer")
+  recoveryRequestsRejected PasswordRecoveryRequest[] @relation("RecoveryRejecter")
+  recoveryRequestsRevoked PasswordRecoveryRequest[] @relation("RecoveryRevoker")
   notifications Notification[]
   @@index([villageId])
   @@index([houseId])
@@ -281,7 +286,11 @@ DEACTIVATION_APPROVED
 DEACTIVATION_REJECTED 
 DEACTIVATION_CANCELLED 
 DEACTIVATION_COMPLETED 
-DEACTIVATION_REMINDER 
+DEACTIVATION_REMINDER
+RECOVERY_REQUESTED
+RECOVERY_REJECTED
+RECOVERY_PASSWORD_CHANGED
+RECOVERY_RESET_COMPLETED
 }
 
 /// One Chief-initiated request to deactivate a village, and everything that
@@ -344,6 +353,11 @@ model Notification {
   village Village? @relation(fields: [villageId], references: [id], onDelete: Restrict)
   requestId String?
   request VillageDeactivationRequest? @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  /// Set only for RECOVERY_* types, and then requestId is NULL (a CHECK in the
+  /// password_recovery migration enforces this). Deactivation types keep using
+  /// requestId, so the two families never share a link column.
+  recoveryRequestId String?
+  recoveryRequest PasswordRecoveryRequest? @relation(fields: [recoveryRequestId], references: [id], onDelete: Restrict)
   type NotificationType
   params Json?
   dedupeKey String @unique
@@ -351,4 +365,74 @@ model Notification {
   createdAt DateTime @default(now())
   @@index([userId, readAt, createdAt])
   @@index([requestId])
+  @@index([recoveryRequestId])
+}
+
+enum PasswordRecoveryStatus {
+PENDING
+CODE_ISSUED
+COMPLETED
+REJECTED
+EXPIRED
+REVOKED
+}
+
+/// One password recovery request for one account, and everything that happened
+/// to it (Chief-issued one-time reset code). Rows are never deleted.
+///
+/// userId is the account being recovered. villageId is that account's village
+/// when it was filed (NULL for a SYSTEM_ADMIN). Who may act on the request is
+/// NOT stored: it is worked out from current data every time.
+///
+/// Only a hash of the code is stored (HMAC-SHA-256, 64 hex characters), and it
+/// is cleared as soon as the request leaves CODE_ISSUED. The raw code is never
+/// stored.
+///
+/// The partial unique index (one PENDING/CODE_ISSUED request per user) and the
+/// CHECK constraints (field shape per status, hash format, note length)
+/// cannot be expressed in Prisma. They are written by hand at the end of the
+/// password_recovery migration, like the deactivation migration.
+///
+/// Allowed transitions are NOT enforced by the database (a CHECK cannot see the
+/// previous row). The application enforces them with compare-and-set updates.
+model PasswordRecoveryRequest {
+  id String @id @default(cuid())
+  userId String
+  user User @relation("RecoveryTarget", fields: [userId], references: [id], onDelete: Restrict)
+  villageId String?
+  village Village? @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  status PasswordRecoveryStatus @default(PENDING)
+  /// While PENDING: after this instant the request can no longer be acted on.
+  requestExpiresAt DateTime
+  /// HMAC-SHA-256 of the current code, lowercase hex. NULL unless CODE_ISSUED.
+  codeHash String?
+  codeIssuedAt DateTime?
+  /// After this instant the code no longer works.
+  codeExpiresAt DateTime?
+  codeIssuedByUserId String?
+  codeIssuedBy User? @relation("RecoveryIssuer", fields: [codeIssuedByUserId], references: [id], onDelete: Restrict)
+  /// How many times a code was issued (a re-issue replaces the old code).
+  issueCount Int @default(0)
+  /// Wrong codes submitted against this request.
+  failedRedeemAttempts Int @default(0)
+  rejectedByUserId String?
+  rejectedBy User? @relation("RecoveryRejecter", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
+  rejectedAt DateTime?
+  /// Optional short note for the member (at most 200 characters).
+  rejectionNote String?
+  /// WITHDRAWN (by an authority, with a note), TOO_MANY_ATTEMPTS or
+  /// TARGET_INELIGIBLE (both by the system, so revokedByUserId stays NULL).
+  revocationReason String?
+  revokedByUserId String?
+  revokedBy User? @relation("RecoveryRevoker", fields: [revokedByUserId], references: [id], onDelete: Restrict)
+  revokedAt DateTime?
+  revocationNote String?
+  expiredAt DateTime?
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notifications Notification[]
+  @@index([status, requestExpiresAt])
+  @@index([villageId, status])
+  @@index([userId, createdAt])
 }
