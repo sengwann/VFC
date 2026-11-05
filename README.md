@@ -14,6 +14,7 @@ VFC is a full-stack web application for village administration and financial man
 - **Collector assignments** — assign users to collection duties.
 - **Receipts** — view payment receipt records.
 - **Analytics and audit logs** — review operational information and recorded actions.
+- **Password recovery** — a member who forgot their password asks for a reset; their village Chief (or a System Admin) confirms who they are and issues a one-time code. See [Password recovery](#password-recovery).
 
 The application defines three user roles: `SYSTEM_ADMIN`, `CHIEF`, and `VILLAGER`. Access to village data must remain properly isolated between villages.
 
@@ -107,6 +108,7 @@ Open [http://localhost:5000](http://localhost:5000) in your browser.
 | `npm run typecheck` | Run the TypeScript type checker |
 | `npm test` | Run the Vitest test suite once |
 | `npm run test:watch` | Run Vitest in watch mode |
+| `npm run admin:reset-password -- --email <admin email> --yes` | Last-resort reset for a System Admin (temporary password, forced change) |
 | `npm run db:generate` | Generate Prisma Client |
 | `npm run db:migrate` | Run development database migrations |
 | `npm run db:deploy` | Apply pending migrations in a deployment environment |
@@ -152,6 +154,17 @@ VFC handles user accounts and financial records. Changes in these areas require 
 - Prevent duplicate or inconsistent payment and receipt records.
 - Preserve financial history; use the established voiding and audit mechanisms instead of silently deleting records.
 - Do not run destructive database commands against shared or production data without explicit approval.
+
+## Password recovery
+
+There is no email or SMS reset. Recovery is vouched for by a person:
+
+1. The member opens **Forgot password?** on the sign-in page and files a request. The answer is always the same, whether or not the account exists.
+2. Their village Chief is notified. A Chief's own request, or a request from a village with no active Chief, goes to the System Admins. A System Admin's request goes to a different System Admin.
+3. The approver confirms who the member is in person or by phone, re-enters their own password, and issues a one-time code (valid 72 hours, shown once). They can also reject the request or withdraw a live code.
+4. The member enters the code on **Reset password** and chooses a new password. All their sessions end, and a notice tells them their password changed, when, and by whom.
+
+A request that nobody answers expires after 7 days. The **last** System Admin has nobody to approve them, so use `npm run admin:reset-password` on the server instead.
 
 ## Contributing
 
