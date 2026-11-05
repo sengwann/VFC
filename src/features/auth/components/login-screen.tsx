@@ -74,10 +74,12 @@ function BrandPanel() {
 function LoginContent({
   redirectTo,
   registered,
+  passwordReset,
   defaultVillageCode,
 }: {
   redirectTo: string;
   registered: boolean;
+  passwordReset: boolean;
   defaultVillageCode: string;
 }) {
   const { t, language } = useTranslation();
@@ -123,11 +125,29 @@ function LoginContent({
             </Alert>
           ) : null}
 
+          {passwordReset ? (
+            <Alert
+              className="mt-6"
+              tone="success"
+              title={t("recovery.login.resetDoneTitle")}
+            >
+              {t("recovery.login.resetDoneBody")}
+            </Alert>
+          ) : null}
+
           <div className="mt-6 sm:rounded-2xl sm:border sm:bg-card sm:p-6 sm:shadow-sm">
             <LoginForm
               defaultVillageCode={defaultVillageCode}
               redirectTo={redirectTo}
             />
+            <div className="mt-4 text-center">
+              <Link
+                className="text-sm text-muted-foreground underline"
+                href="/forgot-password"
+              >
+                {t("recovery.login.forgotLink")}
+              </Link>
+            </div>
           </div>
 
           <div className="mt-8 space-y-3 border-t pt-6 text-center">
@@ -162,10 +182,12 @@ function LoginContent({
 export function LoginScreen({
   redirectTo,
   registered,
+  passwordReset = false,
   defaultVillageCode = "",
 }: {
   redirectTo: string;
   registered: boolean;
+  passwordReset?: boolean;
   defaultVillageCode?: string;
 }) {
   const language = useLoginLanguage();
@@ -174,6 +196,7 @@ export function LoginScreen({
     <TranslationProvider language={language}>
       <LoginContent
         defaultVillageCode={defaultVillageCode}
+        passwordReset={passwordReset}
         redirectTo={redirectTo}
         registered={registered}
       />

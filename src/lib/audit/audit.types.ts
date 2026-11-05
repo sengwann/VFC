@@ -10,6 +10,7 @@ export const AuditEntityType = {
   RECEIPT: "RECEIPT",
   SESSION: "SESSION",
   DEACTIVATION_REQUEST: "DEACTIVATION_REQUEST",
+  PASSWORD_RECOVERY_REQUEST: "PASSWORD_RECOVERY_REQUEST",
 } as const;
 
 export type AuditEntityType =
@@ -80,6 +81,45 @@ export interface ReceiptAuditMetadata {
 export interface SessionAuditMetadata {
   userRole?: string;
   villageId?: string | null;
+}
+
+/**
+ * Password recovery entries. Dates are ISO-8601 UTC strings.
+ *
+ * NEVER put a reset code, a code hash, a password, a token, or the member's
+ * email or phone number in here. Ids, times, counts and the short keyed
+ * fingerprint below are the only identifying values allowed.
+ *
+ * `event` is one of REQUESTED, CODE_ISSUED, CODE_REISSUED, REJECTED,
+ * CODE_REVOKED, COMPLETED, EXPIRED, STEP_UP_FAILED, REDEEM_FAILED (a wrong
+ * code), AUTHORITY_REFUSED. `outcome` is "BLOCKED" for a refused attempt worth
+ * recording (a wrong re-entered password, a wrong code).
+ */
+export interface RecoveryAuditMetadata {
+  event?: string;
+  requestId?: string;
+  targetUserId?: string;
+  issuedByUserId?: string;
+  issueCount?: number;
+  requestExpiresAt?: string;
+  codeExpiresAt?: string;
+  rejectedAt?: string;
+  completedAt?: string;
+  revocationReason?: string;
+  failedAttempts?: number;
+  outcome?: "SUCCESS" | "BLOCKED";
+  blockReason?: string;
+  /** Short keyed fingerprint of the client IP; never the raw address. */
+  clientFingerprint?: string;
+  /** "cli" for the server-side last-admin reset. */
+  via?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  /** The rejection or withdrawal note the approver typed (plain text, <= 200). */
+  note?: string;
+  notificationDelivery?: "FAILED";
+  notificationEvent?: string;
+  error?: string;
 }
 
 /**

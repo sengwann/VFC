@@ -30,7 +30,19 @@ import {
  *  - Otherwise attempts + 1; exceeding maxAttempts starts the cooldown.
  */
 
-export type LoginThrottleScope = "IDENTIFIER_IP" | "IP" | "SIGNUP_IP";
+export type LoginThrottleScope =
+  | "IDENTIFIER_IP"
+  | "IP"
+  | "SIGNUP_IP"
+  // Password recovery (see features/password-recovery/lib/recovery-throttle.ts).
+  // They live in the same table with scopes of their own, so a login lockout
+  // never blocks recovery and a recovery lockout never blocks sign-in.
+  | "RECOVERY_REQUEST_IP"
+  | "RECOVERY_REQUEST_IDENTIFIER"
+  | "RECOVERY_REDEEM_IDENTIFIER_IP"
+  | "RECOVERY_REDEEM_IP"
+  | "RECOVERY_STEPUP_ACCOUNT"
+  | "RECOVERY_STEPUP_IP";
 
 export interface ThrottlePolicy {
   maxAttempts: number;
@@ -84,7 +96,7 @@ const KEY_LABEL = "login-throttle:v1";
 const NO_IP = "no-ip";
 const CLEANUP_PROBABILITY = 0.02;
 
-function getThrottleSecret(): string {
+export function getThrottleSecret(): string {
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw new Error("AUTH_SECRET is required.");
   if (secret.length < 32) {

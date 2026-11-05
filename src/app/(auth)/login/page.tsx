@@ -56,6 +56,7 @@ export default async function LoginPage({
   }
 
   const registered = getFirstStringValue(params.registered) === "1";
+  const passwordReset = getFirstStringValue(params.reset) === "1";
 
   // Registration sends the village code along so the new villager does not
   // have to type it again. It is only a pre-fill; the sign-in re-validates it.
@@ -70,6 +71,7 @@ export default async function LoginPage({
     <LoginScreen
       defaultVillageCode={defaultVillageCode}
       redirectTo={redirectTo}
+      passwordReset={passwordReset}
       registered={registered}
     />
   );
