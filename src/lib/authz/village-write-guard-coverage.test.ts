@@ -73,6 +73,16 @@ const EXEMPT: Record<string, string> = {
     "System Admin lifecycle action; blocked during the countdown (Phase 4).",
   "src/features/village-management/actions/reactivate-village.action.ts":
     "System Admin lifecycle action.",
+  "src/features/password-recovery/actions/request-password-recovery.action.ts":
+    "Public form with no signed-in user; writes only a recovery request, never village financial records, and recovery must keep working while a village is read-only.",
+  "src/features/password-recovery/actions/redeem-recovery-code.action.ts":
+    "Public form with no signed-in user; it changes the member's own password, a security operation the rules preserve during read-only.",
+  "src/features/password-recovery/actions/issue-recovery-code.action.ts":
+    "Security operation: a Chief must be able to help a member regain access even while the village is read-only; it writes no village financial records.",
+  "src/features/password-recovery/actions/decide-recovery-request.action.ts":
+    "Security operation (reject or withdraw a recovery request); it writes no village financial records and must work during read-only.",
+  "src/features/password-recovery/actions/mark-recovery-notifications-read.action.ts":
+    "Changes only the signed-in user's own read marks, never village records; it must work during read-only.",
 };
 
 const ROOT = path.resolve(__dirname, "../../..");

@@ -5,6 +5,7 @@ import {
   planDeactivationNotifications,
   type PlannedNotification,
 } from "./deactivation-notifications-plan";
+import { RECOVERY_NOTIFICATION_TYPES } from "../../password-recovery/lib/recovery-notifications-plan";
 
 /*
  * Stores the in-app notifications for a deactivation request. Notifications are
@@ -20,6 +21,16 @@ import {
  */
 
 type Client = Prisma.TransactionClient;
+
+/*
+ * The read helpers below belong to the DEACTIVATION family only. Password
+ * recovery notifications live in the same table, so every query here excludes
+ * them: they are not listed or counted here, and "mark as read" here can never
+ * mark a recovery security notice as read.
+ */
+const NOT_RECOVERY = {
+  type: { notIn: [...RECOVERY_NOTIFICATION_TYPES] },
+} satisfies Prisma.NotificationWhereInput;
 
 export interface SyncResult {
   planned: number;
@@ -182,7 +193,7 @@ export function listNotificationsForUser(
   take = 50,
 ): Promise<StoredNotification[]> {
   return client.notification.findMany({
-    where: { userId },
+    where: { userId, ...NOT_RECOVERY },
     orderBy: { createdAt: "desc" },
     take,
     select: {
@@ -201,7 +212,9 @@ export function countUnreadNotifications(
   client: Client,
   userId: string,
 ): Promise<number> {
-  return client.notification.count({ where: { userId, readAt: null } });
+  return client.notification.count({
+    where: { userId, readAt: null, ...NOT_RECOVERY },
+  });
 }
 
 /**
@@ -215,7 +228,12 @@ export async function markNotificationsRead(
   now: Date,
 ): Promise<number> {
   const result = await client.notification.updateMany({
-    where: { userId, id: { in: [...notificationIds] }, readAt: null },
+    where: {
+      userId,
+      id: { in: [...notificationIds] },
+      readAt: null,
+      ...NOT_RECOVERY,
+    },
     data: { readAt: now },
   });
 
@@ -229,7 +247,7 @@ export async function markAllNotificationsRead(
   now: Date,
 ): Promise<number> {
   const result = await client.notification.updateMany({
-    where: { userId, readAt: null },
+    where: { userId, readAt: null, ...NOT_RECOVERY },
     data: { readAt: now },
   });
 

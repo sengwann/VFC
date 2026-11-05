@@ -54,6 +54,7 @@ const ENTITY_KEYS: Record<string, TranslationKey> = {
   RECEIPT: "audit.entity.receipt",
   SESSION: "audit.entity.session",
   DEACTIVATION_REQUEST: "audit.entity.deactivationRequest",
+  PASSWORD_RECOVERY_REQUEST: "audit.entity.passwordRecovery",
 };
 
 const METADATA_KEYS: Record<string, TranslationKey> = {
@@ -80,6 +81,17 @@ const METADATA_KEYS: Record<string, TranslationKey> = {
   notificationEvent: "audit.meta.notificationEvent",
   error: "audit.meta.error",
   processingAttempts: "audit.meta.processingAttempts",
+  event: "audit.meta.event",
+  targetUserId: "audit.meta.targetUserId",
+  issuedByUserId: "audit.meta.issuedByUserId",
+  issueCount: "audit.meta.issueCount",
+  codeExpiresAt: "audit.meta.codeExpiresAt",
+  requestExpiresAt: "audit.meta.requestExpiresAt",
+  revocationReason: "audit.meta.revocationReason",
+  failedAttempts: "audit.meta.failedAttempts",
+  clientFingerprint: "audit.meta.clientFingerprint",
+  via: "audit.meta.via",
+  note: "audit.meta.note",
 };
 
 /** Metadata values that are ISO timestamps, shown in Yangon time. */
@@ -90,6 +102,8 @@ const DATE_METADATA_KEYS = new Set([
   "cooldownEndsAt",
   "cancelledAt",
   "completedAt",
+  "codeExpiresAt",
+  "requestExpiresAt",
 ]);
 
 const ENUM_VALUE_KEYS: Record<string, TranslationKey> = {
@@ -174,6 +188,11 @@ export function formatMetadataValue(
     }
     if (ENUM_METADATA_KEYS.has(key)) {
       return ENUM_VALUE_KEYS[value] ? t(ENUM_VALUE_KEYS[value]) : value;
+    }
+    // Recovery events and revocation reasons are stored as CODE_ISSUED,
+    // TOO_MANY_ATTEMPTS and so on: show them as readable words.
+    if (key === "event" || key === "revocationReason") {
+      return humanize(value);
     }
     return STATUS_METADATA_KEYS.has(key) ? getStatusLabel(t, value) : value;
   }

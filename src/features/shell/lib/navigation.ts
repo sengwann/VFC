@@ -43,6 +43,7 @@ function formatBadgeCount(count: number): string {
 export function buildPlatformNavigation(
   language: LanguagePreference,
   pendingDeactivationRequests = 0,
+  pendingRecoveryRequests = 0,
 ): ShellNavigation {
   const t = getT(language);
 
@@ -73,8 +74,25 @@ export function buildPlatformNavigation(
     badgeVariant: pendingDeactivationRequests > 0 ? "alert" : undefined,
   };
 
+  const passwordRecovery: NavItem = {
+    label: t("nav.passwordRecovery"),
+    href: "/admin/password-recovery",
+    iconName: "shield-check",
+    badge:
+      pendingRecoveryRequests > 0
+        ? formatBadgeCount(pendingRecoveryRequests)
+        : undefined,
+    badgeVariant: pendingRecoveryRequests > 0 ? "alert" : undefined,
+  };
+
   return {
-    sidebarItems: [dashboard, villages, deactivationRequests, platformAudit],
+    sidebarItems: [
+      dashboard,
+      villages,
+      deactivationRequests,
+      passwordRecovery,
+      platformAudit,
+    ],
     mobileItems: [dashboard, villages, deactivationRequests, platformAudit],
   };
 }
@@ -85,9 +103,17 @@ export function buildVillageNavigation(params: {
   isHeadOfHouse: boolean;
   notifications?: NotificationSummary;
   language: LanguagePreference;
+  /** Open password recovery requests waiting for this Chief (nav badge). */
+  pendingRecoveryRequests?: number;
 }): ShellNavigation {
-  const { user, isActiveCollector, isHeadOfHouse, notifications, language } =
-    params;
+  const {
+    user,
+    isActiveCollector,
+    isHeadOfHouse,
+    notifications,
+    language,
+    pendingRecoveryRequests = 0,
+  } = params;
   const t = getT(language);
   const activeMembership = user.membershipStatus === MembershipStatus.ACTIVE;
   const isChief = user.role === UserRole.CHIEF;
@@ -162,6 +188,16 @@ export function buildVillageNavigation(params: {
     badge: chiefSummary?.deactivationStatus ? "!" : undefined,
     badgeVariant: chiefSummary?.deactivationStatus ? "alert" : undefined,
   };
+  const passwordRecovery: NavItem = {
+    label: t("nav.passwordRecovery"),
+    href: "/village/password-recovery",
+    iconName: "shield-check",
+    badge:
+      pendingRecoveryRequests > 0
+        ? formatBadgeCount(pendingRecoveryRequests)
+        : undefined,
+    badgeVariant: pendingRecoveryRequests > 0 ? "alert" : undefined,
+  };
     const audit: NavItem = {
     label: t("nav.auditLog"),
     href: "/village/audit",
@@ -169,7 +205,15 @@ export function buildVillageNavigation(params: {
   };
 
   if (user.role === UserRole.CHIEF) {
-    sidebarItems.push(houses, collectors, funds, receipts, audit, deactivation);
+    sidebarItems.push(
+      houses,
+      collectors,
+      funds,
+      receipts,
+      passwordRecovery,
+      audit,
+      deactivation,
+    );
   }
   if (isHeadOfHouse) {
     sidebarItems.push(members);

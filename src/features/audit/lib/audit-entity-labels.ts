@@ -106,6 +106,19 @@ export async function resolveEntityInfo(
         : { label: entityId, href: null };
     }
 
+    case AuditEntityType.PASSWORD_RECOVERY_REQUEST: {
+      const request = await prisma.passwordRecoveryRequest.findFirst({
+        where: { id: entityId, villageId },
+        select: { user: { select: { name: true } } },
+      });
+      return request
+        ? {
+            label: `Password recovery · ${request.user.name}`,
+            href: null,
+          }
+        : { label: entityId, href: null };
+    }
+
     case AuditEntityType.PAYMENT:
       return { label: "Payment record", href: null };
 
