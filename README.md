@@ -135,7 +135,7 @@ The deactivation worker is a separate Node process; automatic village deactivati
 
 ## Important Notes
 
-- **`npm run typecheck` is currently failing** on `main`: 29 errors in 28 files. Most are `Module '"@/lib/i18n/en"' has no exported member 'TranslationKey'` (`src/lib/i18n/en.ts` only exports `en`); one is in `src/features/fund-management/actions/create-fund.action.ts:117` (`fundId` is `string | undefined`). Not fixed here because this task is documentation only. `docs/village-deactivation-final-report.md` states the authoring environment could not run `tsc`.
+- `npm run typecheck` last failed with 29 errors (missing `TranslationKey` export in `src/lib/i18n/en.ts`, and a union-narrowing error in `create-fund.action.ts`); both are fixed on this branch but a full `npm run typecheck` has **not** been re-run because dependencies are not installed in the authoring environment. Run it locally to confirm.
 - Sessions are invalidated by incrementing `User.sessionVersion`; users of non-`ACTIVE` villages are treated as signed out.
 - While a village has an `APPROVED` deactivation request it is read-only; mutations are blocked by a shared guard.
 - Agent instructions live in `AGENTS.md` and `CLAUDE.md`.

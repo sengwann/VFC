@@ -46,7 +46,7 @@ npm run worker:deactivation[:once]
 
 Do not run `npm install`/upgrade/remove packages unless the task requires it. Env var names are listed in `README.md`; never print, commit or overwrite `.env*`.
 
-**Known baseline:** `npm run typecheck` currently fails on `main` (29 errors: `TranslationKey` is imported from `src/lib/i18n/en.ts`, which does not export it, plus `create-fund.action.ts:117`). Do not treat these as caused by your change, and do not hide them; compare against this baseline. Fixing them is a separate, approved task.
+**Typecheck:** it previously failed (29 errors: missing `TranslationKey` export, and `create-fund.action.ts` narrowing). Both were fixed, but a full `npm run typecheck` has not been re-run since; confirm locally. Report any failure you did not cause rather than hiding it.
 
 ## 4. Coding Conventions (observed)
 
@@ -95,7 +95,7 @@ Run, as relevant to what you changed, and report honestly what ran:
 
 | Change area | Run |
 | --- | --- |
-| Any TypeScript change | `npm run typecheck` (compare to the known baseline), `npm run lint` |
+| Any TypeScript change | `npm run typecheck` , `npm run lint` |
 | Pure rules, validators, actions | `npm test` (or a single file via `npx vitest run <path>`) |
 | Schema/migrations, guard, transitions, worker, throttle | `npm test` and `npm run test:integration` against a disposable `TEST_DATABASE_URL` |
 | Routes, layouts, build config | `npm run build` |

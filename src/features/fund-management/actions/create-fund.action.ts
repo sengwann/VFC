@@ -50,7 +50,11 @@ export async function createFundAction(
       const guard = await guardVillageWrite(tx, villageId);
 
       if (!guard.ok) {
-        return { kind: guard.reason } as const;
+        // Two separate literals (not `{ kind: guard.reason }`) so TypeScript
+        // can narrow each outcome by `kind` below.
+        return guard.reason === "VILLAGE_READ_ONLY"
+          ? ({ kind: "VILLAGE_READ_ONLY" } as const)
+          : ({ kind: "VILLAGE_INACTIVE" } as const);
       }
 
       // numberOfHouse = total ACTIVE houses in this village (server-side source of truth)

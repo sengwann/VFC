@@ -1230,3 +1230,5 @@ export const en = {
   "recovery.notices.markRead": "Mark all as read",
   "recovery.notices.new": "New",
 } as const;
+
+export type TranslationKey = keyof typeof en;
