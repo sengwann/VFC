@@ -10,159 +10,118 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+Keywords: **MUST / MUST NOT** = mandatory. **Should** = recommendation. Source code and `prisma/schema.prisma` are the source of truth; if this file disagrees with them, trust the code and fix this file. Also read `CLAUDE.md` (mentoring workflow) and `README.md` (setup, env vars).
+
 ## 1. Project Overview
 
-VFC is a village fund collection and management application.
+VFC is a village fund collection and administration app: a single Next.js 16 (App Router) + React 19 + TypeScript 5 application backed by PostgreSQL through Prisma 7 (`@prisma/adapter-pg`). Auth is a custom JWT cookie (`jose`) with `bcryptjs` password hashes. Styling is Tailwind CSS 4, tests are Vitest 5, package manager is npm. UI strings exist in English and Burmese (`src/lib/i18n/en.ts`, `my.ts`).
 
-Tech stack:
-- Next.js 16 (App Router)
-- React 19
-- TypeScript 5
-- PostgreSQL
-- Prisma 7
-- Tailwind CSS 4
-- Vitest
-- jose
-- bcryptjs
+Roles: `SYSTEM_ADMIN` (no village), `CHIEF`, `VILLAGER`. There is also a standalone Node worker (`scripts/deactivation-worker.ts`) for the village deactivation workflow.
 
-Treat repository source code and Prisma schema as the source of truth. Do not assume a feature, route, model, or folder exists until inspected.
+## 2. Architecture
 
-## 2. Working Rules
+- `src/app/` — routes only. Route groups: `(auth)` public auth pages, `(platform)` System Admin, `(village)` village users, `(protected)` signed-in pages, plus `change-password`, `dashboard`, `forbidden`. `change-password` MUST stay outside the guarded groups (documented in `auth.constants.ts`).
+- `src/features/<feature>/` — feature code, typically `actions/` (server actions), `components/`, `lib/` (rules, validators, queries, services). Add new behavior to the matching feature folder.
+- `src/lib/auth/` — session (`session.ts`), guards (`guards.ts`), password hashing/rules, login throttling, identifier normalization, client IP.
+- `src/lib/authz/` — role and village access checks (`roles.ts`, `context.ts`, `village.ts`, `house.ts`, `collector.ts`, `tenant.ts`).
+- `src/lib/audit/` — append-only audit log service.
+- `src/lib/db/` — `withSerializableRetry` and unique-violation helpers. `src/lib/prisma.ts` — the shared Prisma client.
+- `prisma/` — schema, migrations, `seed.ts`. `scripts/` — deactivation worker, test-db prepare, admin password reset, run via `tsx`. `prisma/seed.ts` and `reset-admin-password.ts` build their own Prisma client and import nothing from `src/`; the worker imports shared code from `src/` (hence `--conditions=react-server`).
 
-Before making changes:
-1. Read this file and any more specific AGENTS.md files.
-2. Read README.md and inspect relevant source files.
-3. Inspect related routes, components, services, database models, and tests.
-4. For Next.js work, read relevant documentation under `node_modules/next/dist/docs/`.
-5. Explain the problem and propose a small plan before risky changes.
+Pure business rules live in `lib/` files with no I/O (for example `village-deactivation-rules.ts`, `deactivation-config.ts`, `recovery-code.ts`) and are unit tested directly. Keep new rules pure where practical.
 
-Prefer small, focused changes. Avoid unrelated refactoring.
+## 3. Development Workflow
 
-## 3. Code Quality
+```bash
+npm install                 # runs prisma generate
+npm run dev                 # 0.0.0.0:5000
+npm run lint
+npm run typecheck
+npm test                    # vitest run; *.integration.test.ts skipped without TEST_DATABASE_URL
+npm run build
+npm run db:migrate | db:deploy | db:generate | db:studio
+npm run test:integration    # needs TEST_DATABASE_URL (after npm run db:test:prepare)
+npm run worker:deactivation[:once]
+```
 
-- Follow the installed Next.js version's App Router conventions.
-- Use TypeScript. Avoid `any`.
-- Keep UI components focused on presentation.
-- Keep business logic and database access on the server where possible.
-- Use Server Components by default. Add `"use client"` only when necessary.
-- Keep secrets and database access server-side.
-- Validate all untrusted input.
-- Follow existing project patterns.
-- Handle loading, empty, success, and error states.
-- Never silence errors just to make checks pass.
+Do not run `npm install`/upgrade/remove packages unless the task requires it. Env var names are listed in `README.md`; never print, commit or overwrite `.env*`.
 
-## 4. Authentication and Authorization
+**Known baseline:** `npm run typecheck` currently fails on `main` (29 errors: `TranslationKey` is imported from `src/lib/i18n/en.ts`, which does not export it, plus `create-fund.action.ts:117`). Do not treat these as caused by your change, and do not hide them; compare against this baseline. Fixing them is a separate, approved task.
 
-Security is a core requirement.
+## 4. Coding Conventions (observed)
 
-- Never trust user ID, role, or village ID sent by the browser.
-- Get authenticated user information from the trusted server-side authentication flow.
-- Check authentication and authorization on every protected server operation.
-- Follow existing roles: `SYSTEM_ADMIN`, `CHIEF`, and `VILLAGER`.
-- Enforce village-level data isolation.
-- Users must not access another village's data unless explicitly authorized.
-- Check ownership, village membership, and permissions for reads and writes.
-- Never expose password hashes, JWT secrets, or tokens.
-- Follow existing password hashing and token verification mechanisms.
-- Hiding a UI button is not authorization.
+- TypeScript strict mode; path alias `@/*` → `src/*` (relative imports are also used; follow the neighboring file). Avoid `any`.
+- Server-only modules start with `import "server-only";`. Vitest aliases it to `test/stubs/server-only.ts`.
+- Server actions return result objects (`{ success: true, ... }` / `{ success: false, formError | error | fieldErrors, code? }`) rather than throwing to the UI; follow the nearest existing action.
+- Validation lives in `lib/*-validators.ts` / `*-input.ts` files next to the feature; form values are read with the existing FormData helpers.
+- User-facing text goes through the i18n dictionaries, not hard-coded, where the surrounding code already does so. New keys MUST be added to both `en.ts` and `my.ts`.
+- Tests are co-located (`*.test.ts`); integration tests use `describe.skipIf(!process.env.TEST_DATABASE_URL)`.
+- Should: follow existing comment style — comments explain *why*, especially for security and concurrency.
 
-## 5. Financial and Data Integrity
+## 5. Architecture Rules (MUST preserve)
 
-VFC handles fund and payment records. Treat financial data as sensitive.
+1. **One village write guard.** Every village-scoped mutation calls `guardVillageWrite(tx, villageId)` (`src/lib/authz/village.ts`) inside its transaction before touching village data, and answers `VILLAGE_INACTIVE` / `VILLAGE_READ_ONLY` on `{ ok: false }`. `village-write-guard-coverage.test.ts` enforces an inventory; a new village-scoped writer must be added there deliberately. Do not create a second guard.
+2. **Serializable + retry** for lifecycle/deactivation transitions: use `withSerializableRetry` (`src/lib/db/transaction.ts`) as existing transitions do.
+3. **Password gate.** Protected pages and actions MUST use `requireAuthenticatedUser()` (or the role helpers built on it). `requireSessionUser` / `getCurrentUser` are allowed only in files listed in `password-gate-coverage.test.ts`.
+4. **Village lifecycle** (`ACTIVE`/`SUSPENDED`/`DEACTIVATED`) and deactivation request status are separate states. "Read-only" means an `APPROVED` deactivation request exists; it is not a village status. The 24-hour countdown is fixed in code (`DEACTIVATION_COUNTDOWN_HOURS`), not configurable.
+5. The deactivation worker is a plain Node process independent of the web host; keep it host-independent and idempotent (requests are claimed with `FOR UPDATE SKIP LOCKED`).
 
-- Never use floating-point arithmetic for money.
-- Follow the existing database representation for monetary values.
-- Validate amounts on the server.
-- Never trust totals or payment statuses calculated by the client.
-- Use database transactions when multiple writes must succeed together.
-- Prevent duplicate payments and receipts.
-- Do not silently modify or delete financial history.
-- Preserve audit logs for sensitive operations.
-- Consider concurrent requests that may update the same record.
+## 6. Database Rules
 
-## 6. Prisma and Database
+- Models: `Village`, `User`, `House`, `CollectorAssignment`, `Fund`, `Payment`, `Receipt`, `AuditLog`, `UserSettings`, `LoginThrottleState`, `VillageDeactivationRequest`, `Notification`, `PasswordRecoveryRequest`. Money is `Int`.
+- MUST use Prisma migrations for schema changes; MUST NOT edit, delete or reorder existing migrations (`prisma/migrations/`, last inspected: `20261104090100_password_recovery`).
+- MUST NOT run `migrate reset`, `db push`, `DROP`/`TRUNCATE`, or delete/reset the development database, or discard dev data, without explicit approval.
+- Integration tests MUST use a separate disposable `TEST_DATABASE_URL` (name contains `test`, local host, not equal to `DATABASE_URL`); never point them at the dev database. `db:test:prepare` uses `migrate deploy` only.
+- PostgreSQL cannot use a new enum value in the transaction that adds it: add enum values in their own migration (as `20261028233000_add_audit_cancel_complete` did).
+- Many invariants are enforced by CHECK constraints and partial unique indexes that Prisma cannot model; read the migration SQL before changing related fields. Raw SQL comparing timestamp columns must use `now() AT TIME ZONE 'UTC'`.
+- Foreign keys on deactivation requests, notifications and recovery requests are `RESTRICT`; do not change them to cascade.
+- Regenerate Prisma Client (`npm run db:generate`) after schema changes. Schema changes need an explanation of data impact and approval first.
 
-- Inspect `prisma/schema.prisma` and existing migrations before schema changes.
-- Use Prisma migrations for schema changes.
-- Never delete, rewrite, or reorder existing migrations.
-- Review generated SQL for important data or constraint changes.
-- Never reset or delete database data without explicit approval.
-- Never run production migrations without approval.
-- Preserve relations, indexes, unique constraints, and data integrity.
-- Regenerate Prisma Client after schema changes.
+## 7. Authentication and Security Rules (MUST)
 
-## 7. Testing and Verification
+- Session: JWT (HS256) in the `vfcs_session` httpOnly, `sameSite=lax` cookie (secure in production), 7-day lifetime, carrying `sessionVersion`. A session is valid only if the user's current `sessionVersion` matches; non-admin users whose village is not `ACTIVE` are treated as signed out. To sign users out, call `revokeUserSessions` (increments `sessionVersion`).
+- `AUTH_SECRET` MUST be ≥ 32 characters; code throws otherwise. Do not weaken or silently catch this.
+- Never trust role, user id, or village id from the browser; take them from the session user. Enforce village isolation on every read and write.
+- Sign-in identifiers (email/phone) MUST go through `src/lib/auth/identifiers.ts` normalization everywhere they are stored or looked up. Login and signup are throttled (`login-throttle.ts`); keep the generic invalid-credentials message (no account enumeration).
+- Password recovery: a Chief-issued, one-time code; only an HMAC of the code is stored (never the code). Do not log or persist codes, passwords or hashes. `scripts/reset-admin-password.ts` is the last-resort System Admin path.
+- Never expose `passwordHash`, `AUTH_SECRET`, tokens or recovery codes in responses, logs or tests.
+- Audit: existing sensitive operations pass the transaction client to `createAuditLog` (should: do the same for new ones). `AuditLog` is append-only: never `update`/`delete` it. `tryCreateAuditLog` only for LOGIN/LOGOUT/LOGIN_THROTTLED.
+- Payments are voided (status + audit), not deleted; do not silently modify or delete financial history.
+- Unverified / needs owner confirmation: the seed creates a System Admin with a fixed password `00000000` and no forced change. Do not copy this pattern; do not use the seed against production.
 
-Run relevant checks after changes:
+## 8. Testing Requirements
 
-- `npm run typecheck`
-- `npm run lint`
-- `npm test`
-- `npm run build`
+Run, as relevant to what you changed, and report honestly what ran:
 
-Add or update tests for changed behavior, especially:
-- Authentication and permissions
-- Village data isolation
-- Payment and fund calculations
-- Duplicate submissions
-- Invalid input and error handling
+| Change area | Run |
+| --- | --- |
+| Any TypeScript change | `npm run typecheck` (compare to the known baseline), `npm run lint` |
+| Pure rules, validators, actions | `npm test` (or a single file via `npx vitest run <path>`) |
+| Schema/migrations, guard, transitions, worker, throttle | `npm test` and `npm run test:integration` against a disposable `TEST_DATABASE_URL` |
+| Routes, layouts, build config | `npm run build` |
+| New protected page/action or village writer | check `password-gate-coverage` and `village-write-guard-coverage` tests |
 
-Never claim a test passed unless it was actually run. Clearly report failures and checks that could not be run.
+Add or update tests for changed behavior (permissions, village isolation, amounts, duplicates, invalid input). Never claim a check passed unless you ran it; if dependencies or a database are unavailable, say so.
 
-## 8. Environment and Commands
+## 9. Git and Change Management
 
-Use scripts defined in `package.json`.
+- Check `git status` first; do not discard or overwrite uncommitted work. Avoid destructive git commands.
+- Do not commit or push unless asked. Keep diffs small; review `git diff` before finishing; do not touch unrelated files (including generated `tsconfig.tsbuildinfo` and `next-env.d.ts`).
+- The `next dev` block at the top of this file is machine-managed; leave it as is.
+- Ask before changes affecting security, money, user data, schema, or architecture.
+- Teaching mode (from `CLAUDE.md`): the owner is learning; for non-trivial work explain the problem, plan, files, and how to test, in simple language.
 
-Known commands:
-- `npm run dev`
-- `npm run build`
-- `npm run start`
-- `npm run lint`
-- `npm run typecheck`
-- `npm test`
-- `npm run test:watch`
-- `npm run db:generate`
-- `npm run db:migrate`
-- `npm run db:deploy`
-- `npm run db:studio`
+## 10. Documentation Maintenance
 
-Development server uses port `5000`.
-
-Never print or commit real `.env` values. Never overwrite environment files.
-
-## 9. Beginner-Friendly Teaching Mode
-
-The project owner is learning software development.
-
-When implementing a feature or fixing a bug:
-
-1. Explain the problem in simple language.
-2. Explain the proposed solution.
-3. Identify the files that need to change.
-4. Make the smallest correct implementation.
-5. Explain important code decisions and concepts.
-6. Show how to test the result.
-7. Mention limitations and risks.
-
-Explain unfamiliar technical terms. Do not overwhelm the user with unnecessary theory.
-
-## 10. Git Safety
-
-- Do not commit or push unless explicitly asked.
-- Do not discard uncommitted user changes.
-- Avoid destructive Git commands.
-- Do not modify unrelated files.
-- Summarize changed files and tests before finishing.
-- Ask before changes that may affect security, money, user data, or architecture.
+- Update only documentation relevant to the changed functionality.
+- Update `README.md` when setup, installation, environment variables, or major usage changes.
+- Update `AGENTS.md` when project-wide development instructions or conventions change.
+- Update feature documentation (`docs/`) when feature behavior, architecture, or API contracts change.
+- Keep all documentation consistent with the actual implementation.
+- Do not create unnecessary documentation.
 
 ## 11. Completion Checklist
 
-Before declaring a task complete, verify:
-
-- Requested behavior is implemented.
-- Server-side authentication and authorization are enforced.
-- Village-level data isolation is preserved.
-- Financial and database integrity are preserved.
-- Relevant tests and checks were run.
-- No secrets or unrelated changes were introduced.
-- The user understands what changed and how to test it.
+- Requested behavior implemented; server-side auth and village isolation intact.
+- Financial and database integrity preserved; migrations untouched unless approved.
+- Relevant checks run and reported (including pre-existing failures); no secrets or unrelated changes.
