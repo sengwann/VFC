@@ -26,6 +26,12 @@ export type CreateFundActionResult =
       fieldErrors?: Partial<Record<CreateFundField, string>>;
     };
 
+type CreateFundTransactionResult =
+  | { kind: "VILLAGE_READ_ONLY" }
+  | { kind: "VILLAGE_INACTIVE" }
+  | { kind: "per_house_error"; error: string }
+  | { kind: "created"; fundId: string };
+
 export async function createFundAction(
   formData: FormData,
 ): Promise<CreateFundActionResult> {
@@ -46,7 +52,7 @@ export async function createFundAction(
   // One transaction: the guard, the house count the target is derived from,
   // the fund and its audit entry all commit together or not at all.
   try {
-    const outcome = await prisma.$transaction(async (tx) => {
+    const outcome = await prisma.$transaction(async (tx): Promise<CreateFundTransactionResult> => {
       const guard = await guardVillageWrite(tx, villageId);
 
       if (!guard.ok) {
